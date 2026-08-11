@@ -351,8 +351,10 @@ function Get-RemoteIosContext {
     if ($LASTEXITCODE -ne 0 -or $remotes -notcontains 'origin') {
         throw 'No Git origin is configured. Create a GitHub repository, add it as origin, then commit and push this workflow.'
     }
-    $remoteUrl = (& git remote get-url origin | Select-Object -First 1)
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($remoteUrl)) {
+    $remoteUrlOutput = @(& git remote get-url origin)
+    $remoteUrlExitCode = $LASTEXITCODE
+    $remoteUrl = $remoteUrlOutput | Select-Object -First 1
+    if ($remoteUrlExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($remoteUrl)) {
         throw 'The Git origin URL could not be read.'
     }
     $remoteUrl = $remoteUrl.Trim()
@@ -365,8 +367,10 @@ function Get-RemoteIosContext {
         throw "The GitHub owner and repository could not be read from origin: $remoteUrl"
     }
 
-    $branch = (& git branch --show-current 2>$null | Select-Object -First 1)
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($branch)) {
+    $branchOutput = @(& git branch --show-current 2>$null)
+    $branchExitCode = $LASTEXITCODE
+    $branch = $branchOutput | Select-Object -First 1
+    if ($branchExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($branch)) {
         throw 'Remote iOS builds require a checked-out branch rather than a detached HEAD.'
     }
     $branch = $branch.Trim()
@@ -380,14 +384,17 @@ function Get-RemoteIosContext {
 
     $previousErrorActionPreference = $ErrorActionPreference
     $ErrorActionPreference = 'SilentlyContinue'
-    $upstream = (& git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>$null | Select-Object -First 1)
+    $upstreamOutput = @(& git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>$null)
     $upstreamExitCode = $LASTEXITCODE
     $ErrorActionPreference = $previousErrorActionPreference
+    $upstream = $upstreamOutput | Select-Object -First 1
     if ($upstreamExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($upstream)) {
         throw "Branch '$branch' has no upstream. Push it with: git push -u origin $branch"
     }
-    $aheadBehind = (& git rev-list --left-right --count "$($upstream.Trim())...HEAD" 2>$null | Select-Object -First 1)
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($aheadBehind)) {
+    $aheadBehindOutput = @(& git rev-list --left-right --count "$($upstream.Trim())...HEAD" 2>$null)
+    $aheadBehindExitCode = $LASTEXITCODE
+    $aheadBehind = $aheadBehindOutput | Select-Object -First 1
+    if ($aheadBehindExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($aheadBehind)) {
         throw 'The local branch could not be compared with its upstream.'
     }
     $counts = $aheadBehind.Trim() -split '\s+'

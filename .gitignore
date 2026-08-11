@@ -44,4 +44,10 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Android release signing secrets
+/android/key.properties
+/android/app/*.jks
+/android/app/*.keystore
+
 TODO.md
+dist

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../services/barcode_service.dart';
@@ -49,15 +50,66 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   Future<void> _onDetect(BarcodeCapture capture) async {
     final code = capture.barcodes.firstOrNull?.rawValue?.trim();
-    if (code == null ||
-        code.isEmpty ||
-        _handling ||
-        !_barcodeService.shouldHandle(code)) {
+    if (code == null || code.isEmpty) return;
+    await _handleCode(code, scannerFeedback: true);
+  }
+
+  Future<void> _manualEntry() async {
+    final input = TextEditingController();
+    final code = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enter Barcode'),
+        content: TextField(
+          controller: input,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          textInputAction: TextInputAction.done,
+          decoration: const InputDecoration(
+            labelText: 'Barcode',
+            prefixIcon: Icon(Icons.qr_code),
+          ),
+          onSubmitted: (value) {
+            final barcode = value.trim();
+            if (barcode.isNotEmpty) Navigator.pop(context, barcode);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final barcode = input.text.trim();
+              if (barcode.isNotEmpty) Navigator.pop(context, barcode);
+            },
+            child: const Text('Look Up'),
+          ),
+        ],
+      ),
+    );
+    input.dispose();
+    if (code != null && mounted) {
+      await _handleCode(code, scannerFeedback: false);
+    }
+  }
+
+  Future<void> _handleCode(String code, {required bool scannerFeedback}) async {
+    if (_handling || (scannerFeedback && !_barcodeService.shouldHandle(code))) {
       return;
     }
     _handling = true;
     await _controller.stop();
     try {
+      if (scannerFeedback) {
+        try {
+          await HapticFeedback.mediumImpact();
+          await SystemSound.play(SystemSoundType.click);
+        } catch (_) {
+          // Feedback support varies by device and must not block barcode lookup.
+        }
+      }
       final product = await widget.service.byBarcode(code);
       if (!mounted) return;
       if (product != null) {
@@ -138,6 +190,11 @@ class _ScannerScreenState extends State<ScannerScreen>
     appBar: AppBar(
       title: const Text('Scan Barcode'),
       actions: [
+        IconButton(
+          onPressed: _manualEntry,
+          icon: const Icon(Icons.keyboard_outlined),
+          tooltip: 'Enter barcode manually',
+        ),
         IconButton(
           onPressed: _controller.toggleTorch,
           icon: const Icon(Icons.flashlight_on_outlined),

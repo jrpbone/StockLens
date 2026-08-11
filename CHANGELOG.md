@@ -4,6 +4,68 @@ All notable changes to StockLens are recorded in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Added an Android release-signing setup assistant with safe local credential handling.
+
+### Changed
+
+- Reduced the packaging assistant to a focused Android-only APK/AAB workflow while preserving interactive metadata, checks, obfuscation, ABI splitting, checksums, and build manifests.
+- Restricted the run assistant to connected Android devices and emulators so it cannot accidentally launch an unsupported desktop or browser target.
+- Reworked the README as an Android-only project showcase while keeping the technology stack prominent at the top.
+- Reduced launcher-icon generation to Android and removed the unused Cupertino icon dependency.
+
+### Removed
+
+- Removed unused iOS, macOS, Linux, Windows, and web platform scaffolding.
+- Removed the remote iOS GitHub Actions workflow and its token/API/build client.
+- Removed duplicate default Android launcher icons that were not referenced by the manifest.
+
+## [0.2.0] - 2026-08-12
+
+Auditable inventory operations, recoverable product management, and Android data safety.
+
+### Added
+
+- Added persistent stock transaction history containing the quantity delta, reason, optional note, previous and resulting quantities, and timestamp.
+- Added an on-product stock history timeline and an initial-stock record for newly created products.
+- Added archival with confirmation, an Archived Products screen, restoration, and separately confirmed permanent deletion.
+- Added portable JSON backup and restore for products, embedded product images, archive state, and complete stock history.
+- Added CSV inventory export for active and archived products through the Android share sheet.
+- Added permanent app-managed storage for selected product images, replacement cleanup, and image removal.
+- Added manual barcode entry, scan-success haptics, and scan-success sound.
+- Added Android upload-keystore configuration, ignored signing secrets, and release-signing setup documentation.
+- Added a secure PowerShell signing setup assistant with local random-password generation, overwrite protection, and keystore verification.
+- Added real SQLite repository tests for atomic adjustments, negative-stock rollback, archive and restore, cascading deletion, backup recovery, and v1-to-v2 migration.
+
+### Changed
+
+- Upgraded the database to schema version 2 with archive metadata and a foreign-keyed `stock_transactions` table.
+- Made stock quantity read-only while editing a product so inventory changes cannot bypass the transaction history.
+- Replaced the example Android namespace and application ID with `com.jrpbone.stocklens`.
+- Removed the Android release build's insecure fallback to the debug signing key.
+- Made the build assistant default to debug mode until release signing is configured, while rejecting explicit unsigned release requests with setup guidance.
+- Updated the application version to `0.2.0+3`.
+
+### Dependencies
+
+- Added `path_provider` for managed image and export locations.
+- Added `file_picker` for selecting backup files to restore.
+- Added `share_plus` for Android backup and CSV sharing.
+- Added `sqflite_common_ffi` as a development dependency for database integration tests.
+
+### Verification
+
+- Dart formatting completed successfully.
+- Static analysis completed with no issues.
+- All 10 automated tests passed.
+- Android debug APK, debug AAB, and production-signed release AAB generation completed successfully.
+- The release AAB signature was verified and its SHA-256 checksum was recorded by the build assistant.
+- PowerShell build-assistant syntax validation completed successfully.
+- Physical Android scanner and permission validation remains pending because no Android device was connected.
+
 ## [0.1.1] - 2026-08-12
 
 Automated verification and cross-platform development builds.

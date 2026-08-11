@@ -1,4 +1,5 @@
 import '../models/product.dart';
+import '../models/stock_transaction.dart';
 
 enum ProductSort {
   nameAsc,
@@ -17,11 +18,29 @@ abstract interface class ProductRepository {
     String? category,
     ProductSort sort,
   });
+  Future<List<Product>> getArchivedProducts({String query});
   Future<Product?> getById(String id);
   Future<Product?> getByBarcode(String barcode);
   Future<List<String>> getCategories();
   Future<void> add(Product product);
   Future<void> update(Product product);
+  Future<Product> adjustStock({
+    required String productId,
+    required int delta,
+    required String reason,
+    required String note,
+  });
+  Future<List<StockTransaction>> getStockTransactions(String productId);
+  Future<Product> setArchived(String productId, {required bool archived});
+  Future<void> deletePermanently(String productId);
+  Future<Map<String, Object?>> createBackup();
+  Future<void> restoreBackup(Map<String, Object?> backup);
+}
+
+class StockCannotBeNegativeException implements Exception {
+  const StockCannotBeNegativeException();
+  @override
+  String toString() => 'Stock cannot be negative.';
 }
 
 class DuplicateBarcodeException implements Exception {

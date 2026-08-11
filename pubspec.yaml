@@ -11,12 +11,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # build by specifying --build-name and --build-number, respectively.
 # In Android, build-name is used as versionName while build-number used as versionCode.
 # Read more about Android versioning at https://developer.android.com/studio/publish/versioning
-# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
-# Read more about iOS versioning at
-# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
-# In Windows, build-name is used as the major, minor, and patch parts
-# of the product and file versions while build-number is used as the build suffix.
-version: 0.1.1+2
+version: 0.2.0+3
 
 environment:
   sdk: ^3.12.0
@@ -32,13 +27,14 @@ dependencies:
     sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
   sqflite: ^2.4.3
   path: ^1.9.1
+  path_provider: ^2.1.5
   intl: ^0.20.3
   mobile_scanner: ^7.4.0
   image_picker: ^1.2.3
+  file_picker: ^10.3.3
+  share_plus: ^12.0.1
   uuid: ^4.6.0
 
 dev_dependencies:
@@ -51,6 +47,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  sqflite_common_ffi: ^2.4.0+2
   flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
@@ -100,19 +97,5 @@ flutter:
 
 flutter_launcher_icons:
   android: launcher_icon
-  ios: true
   image_path: assets/branding/stocklens_icon.png
   min_sdk_android: 24
-  remove_alpha_ios: true
-  web:
-    generate: true
-    image_path: assets/branding/stocklens_icon.png
-    background_color: "#176B5B"
-    theme_color: "#176B5B"
-  windows:
-    generate: true
-    image_path: assets/branding/stocklens_icon.png
-    icon_size: 256
-  macos:
-    generate: true
-    image_path: assets/branding/stocklens_icon.png

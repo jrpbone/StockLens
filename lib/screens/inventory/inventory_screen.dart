@@ -8,6 +8,8 @@ import '../../widgets/custom_search_bar.dart';
 import '../../widgets/product_card.dart';
 import '../add_product/add_product_screen.dart';
 import '../product_details/product_details_screen.dart';
+import 'archived_products_screen.dart';
+import 'data_management_screen.dart';
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key, required this.service});
@@ -87,6 +89,32 @@ class _InventoryScreenState extends State<InventoryScreen> {
     appBar: AppBar(
       title: const Text('Inventory'),
       actions: [
+        IconButton(
+          onPressed: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DataManagementScreen(service: widget.service),
+              ),
+            );
+            _load();
+          },
+          icon: const Icon(Icons.settings_backup_restore),
+          tooltip: 'Data and backups',
+        ),
+        IconButton(
+          onPressed: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ArchivedProductsScreen(service: widget.service),
+              ),
+            );
+            _load();
+          },
+          icon: const Icon(Icons.archive_outlined),
+          tooltip: 'Archived products',
+        ),
         PopupMenuButton<ProductSort>(
           initialValue: _sort,
           tooltip: 'Sort products',

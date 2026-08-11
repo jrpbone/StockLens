@@ -8,6 +8,7 @@ class Product {
     required this.description,
     required this.quantity,
     this.imagePath,
+    this.archivedAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -20,6 +21,7 @@ class Product {
   final String description;
   final int quantity;
   final String? imagePath;
+  final DateTime? archivedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -32,6 +34,7 @@ class Product {
     description: json['description'] as String? ?? '',
     quantity: (json['quantity'] as num?)?.toInt() ?? 0,
     imagePath: json['image_path'] as String?,
+    archivedAt: _nullableDate(json['archived_at']),
     createdAt: _date(json['created_at']),
     updatedAt: _date(json['updated_at']),
   );
@@ -39,6 +42,9 @@ class Product {
   static DateTime _date(Object? value) =>
       DateTime.tryParse(value?.toString() ?? '') ??
       DateTime.fromMillisecondsSinceEpoch(0);
+
+  static DateTime? _nullableDate(Object? value) =>
+      value == null ? null : DateTime.tryParse(value.toString());
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -49,6 +55,7 @@ class Product {
     'description': description,
     'quantity': quantity,
     'image_path': imagePath,
+    'archived_at': archivedAt?.toIso8601String(),
     'created_at': createdAt.toIso8601String(),
     'updated_at': updatedAt.toIso8601String(),
   };
@@ -62,6 +69,7 @@ class Product {
     String? description,
     int? quantity,
     Object? imagePath = _unset,
+    Object? archivedAt = _unset,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Product(
@@ -75,6 +83,9 @@ class Product {
     imagePath: identical(imagePath, _unset)
         ? this.imagePath
         : imagePath as String?,
+    archivedAt: identical(archivedAt, _unset)
+        ? this.archivedAt
+        : archivedAt as DateTime?,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );

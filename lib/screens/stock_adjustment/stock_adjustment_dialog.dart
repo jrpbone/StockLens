@@ -19,6 +19,7 @@ class StockAdjustmentDialog extends StatefulWidget {
 
 class _StockAdjustmentDialogState extends State<StockAdjustmentDialog> {
   final _amount = TextEditingController(text: '1');
+  final _note = TextEditingController();
   String _reason = 'Restock';
   bool _adding = true;
   bool _saving = false;
@@ -34,6 +35,7 @@ class _StockAdjustmentDialogState extends State<StockAdjustmentDialog> {
   @override
   void dispose() {
     _amount.dispose();
+    _note.dispose();
     super.dispose();
   }
 
@@ -46,6 +48,12 @@ class _StockAdjustmentDialogState extends State<StockAdjustmentDialog> {
       return;
     }
     final delta = _adding ? amount : -amount;
+    if (_reason == 'Other' && _note.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add a note for the Other reason.')),
+      );
+      return;
+    }
     if (widget.product.quantity + delta < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Stock cannot become negative.')),
@@ -54,7 +62,12 @@ class _StockAdjustmentDialogState extends State<StockAdjustmentDialog> {
     }
     setState(() => _saving = true);
     try {
-      final updated = await widget.service.adjustStock(widget.product, delta);
+      final updated = await widget.service.adjustStock(
+        widget.product,
+        delta,
+        reason: _reason,
+        note: _note.text,
+      );
       if (mounted) Navigator.pop(context, updated);
     } catch (_) {
       if (mounted) {
@@ -119,6 +132,17 @@ class _StockAdjustmentDialogState extends State<StockAdjustmentDialog> {
                 .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                 .toList(),
             onChanged: (v) => setState(() => _reason = v!),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _note,
+            textCapitalization: TextCapitalization.sentences,
+            maxLines: 3,
+            decoration: InputDecoration(
+              labelText: _reason == 'Other' ? 'Note (required)' : 'Note',
+              hintText: 'Optional details about this adjustment',
+              prefixIcon: const Icon(Icons.notes),
+            ),
           ),
         ],
       ),

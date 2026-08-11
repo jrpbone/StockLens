@@ -106,15 +106,53 @@ try {
         }
     }
 
-    $runArguments = @('run')
-    if (-not [string]::IsNullOrWhiteSpace($Device)) {
-        $runArguments += @('--device-id', $Device)
+    $deviceOutput = & flutter devices --machine
+    if ($LASTEXITCODE -ne 0) {
+        throw "flutter devices failed with exit code $LASTEXITCODE."
     }
+    $deviceJson = $deviceOutput -join [Environment]::NewLine
+    $availableDevices = @()
+    foreach ($parsedDevice in ($deviceJson | ConvertFrom-Json)) {
+        $availableDevices += $parsedDevice
+    }
+    $androidDevices = @(
+        $availableDevices | Where-Object {
+            $_.targetPlatform -like 'android*' -or $_.platformType -eq 'android'
+        }
+    )
+    if (-not [string]::IsNullOrWhiteSpace($Device)) {
+        $selectedDevice = $androidDevices | Where-Object { $_.id -eq $Device } | Select-Object -First 1
+        if (-not $selectedDevice) {
+            throw "Android device '$Device' is not connected. Run 'flutter devices' to inspect available targets."
+        }
+    }
+    elseif ($androidDevices.Count -eq 0) {
+        throw 'No Android device or emulator is connected.'
+    }
+    elseif ($androidDevices.Count -eq 1) {
+        $selectedDevice = $androidDevices[0]
+    }
+    else {
+        Write-Host 'Connected Android devices:' -ForegroundColor Cyan
+        for ($index = 0; $index -lt $androidDevices.Count; $index++) {
+            Write-Host "[$($index + 1)] $($androidDevices[$index].name) ($($androidDevices[$index].id))"
+        }
+        while (-not $selectedDevice) {
+            $answer = Read-Host "Choose 1-$($androidDevices.Count)"
+            $selection = 0
+            if ([int]::TryParse($answer, [ref]$selection) -and
+                $selection -ge 1 -and $selection -le $androidDevices.Count) {
+                $selectedDevice = $androidDevices[$selection - 1]
+            }
+        }
+    }
+
+    $runArguments = @('run', '--device-id', $selectedDevice.id)
     if ($FlutterArguments) {
         $runArguments += $FlutterArguments
     }
 
-    Write-Host 'Starting StockLens...' -ForegroundColor Green
+    Write-Host "Starting StockLens on $($selectedDevice.name)..." -ForegroundColor Green
     & flutter @runArguments
     if ($LASTEXITCODE -ne 0) {
         throw "flutter run failed with exit code $LASTEXITCODE."

@@ -135,7 +135,7 @@ class _ProductFormState extends State<ProductForm> {
             category: _category.text.trim().isEmpty
                 ? 'Uncategorized'
                 : _category.text.trim(),
-            quantity: int.parse(_quantity.text),
+            quantity: old.quantity,
             description: _description.text.trim(),
             imagePath: _imagePath,
           ),
@@ -187,6 +187,16 @@ class _ProductFormState extends State<ProductForm> {
                   tooltip: 'Choose image',
                 ),
               ),
+              if (_imagePath != null)
+                Positioned(
+                  left: -6,
+                  bottom: -6,
+                  child: IconButton.filledTonal(
+                    onPressed: () => setState(() => _imagePath = null),
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: 'Remove image',
+                  ),
+                ),
             ],
           ),
         ),
@@ -240,11 +250,13 @@ class _ProductFormState extends State<ProductForm> {
         const SizedBox(height: 14),
         TextFormField(
           controller: _quantity,
+          readOnly: _editing,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: const InputDecoration(
             labelText: 'Quantity',
             prefixIcon: Icon(Icons.numbers),
+            helperText: 'Use Adjust Stock after creation to change quantity.',
           ),
           validator: (v) {
             final value = int.tryParse(v ?? '');

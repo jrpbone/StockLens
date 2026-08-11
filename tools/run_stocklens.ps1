@@ -11,7 +11,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$projectDirectory = $PSScriptRoot
+$projectDirectory = Split-Path -Parent $PSScriptRoot
 $previousDirectory = Get-Location
 
 function Test-SymbolicLinkSupport {

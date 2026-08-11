@@ -1,0 +1,123 @@
+name: iOS Remote Build
+run-name: StockLens iOS ${{ inputs.request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Unique request identifier used by the build assistant
+        required: true
+        type: string
+      version_name:
+        description: Semantic application version
+        required: true
+        type: string
+      build_number:
+        description: Positive application build number
+        required: true
+        type: string
+      mode:
+        description: Flutter build mode
+        required: true
+        default: release
+        type: choice
+        options:
+          - debug
+          - profile
+          - release
+      artifact_name:
+        description: Filesystem-safe application name
+        required: true
+        default: StockLens
+        type: string
+      obfuscate:
+        description: Obfuscate Dart symbols for release builds
+        required: true
+        default: false
+        type: boolean
+      run_checks:
+        description: Run formatting, analysis, and tests before building
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    name: Verify and build unsigned iOS app
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.0"
+          channel: stable
+          cache: true
+
+      - name: Restore dependencies
+        run: flutter pub get
+
+      - name: Check formatting
+        if: inputs.run_checks
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze
+        if: inputs.run_checks
+        run: flutter analyze
+
+      - name: Test
+        if: inputs.run_checks
+        run: flutter test
+
+      - name: Build unsigned iOS application
+        shell: bash
+        env:
+          BUILD_MODE: ${{ inputs.mode }}
+          VERSION_NAME: ${{ inputs.version_name }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          OBFUSCATE: ${{ inputs.obfuscate }}
+        run: |
+          build_args=(
+            build ios
+            "--$BUILD_MODE"
+            --no-codesign
+            --build-name "$VERSION_NAME"
+            --build-number "$BUILD_NUMBER"
+          )
+          if [[ "$OBFUSCATE" == "true" ]]; then
+            mkdir -p "build/symbols/$VERSION_NAME+$BUILD_NUMBER/ios"
+            build_args+=(
+              --obfuscate
+              "--split-debug-info=build/symbols/$VERSION_NAME+$BUILD_NUMBER/ios"
+            )
+          fi
+          flutter "${build_args[@]}"
+
+      - name: Package iOS artifact
+        shell: bash
+        env:
+          ARTIFACT_NAME: ${{ inputs.artifact_name }}
+          VERSION_NAME: ${{ inputs.version_name }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          BUILD_MODE: ${{ inputs.mode }}
+        run: |
+          mkdir -p dist
+          archive="$ARTIFACT_NAME-v$VERSION_NAME+$BUILD_NUMBER-$BUILD_MODE-ios-unsigned-app.zip"
+          ditto -c -k --sequesterRsrc --keepParent build/ios/iphoneos/Runner.app "dist/$archive"
+          cd dist
+          shasum -a 256 "$archive" > "$archive.sha256"
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stocklens-ios-${{ inputs.request_id }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14

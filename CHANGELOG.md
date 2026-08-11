@@ -4,6 +4,35 @@ All notable changes to StockLens are recorded in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-08-12
+
+Automated verification and cross-platform development builds.
+
+### Added
+
+- Added a GitHub Actions workflow that checks formatting, runs static analysis and automated tests, and builds an installable Android debug APK on pushes, pull requests, and manual runs.
+- Added downloadable CI artifacts containing the debug APK and its SHA-256 checksum, retained for 14 days.
+- Added cancellation of superseded CI runs on the same Git reference.
+- Added a numbered in-script menu for selecting `android`, `ios`, or `both` targets, while retaining `-Target` for non-interactive automation.
+- Added standalone unsigned iOS `.app` archives for iOS-only and combined builds performed on macOS with Xcode.
+- Added a manually dispatched macOS GitHub Actions workflow for unsigned iOS builds.
+- Added Windows/Linux remote iOS dispatch, status monitoring, artifact download, and SHA-256 verification directly through the GitHub REST API.
+
+### Changed
+
+- Moved the delivery roadmap from the showcase README into `TODO.md`.
+- Restored the README hero with project branding and prominent Flutter, Dart, SQLite, Android, and Material 3 technology badges.
+- Corrected both PowerShell assistants to resolve the project root from the `tools` directory.
+- Updated the application version to `0.1.1+2`.
+
+### Verification
+
+- `dart format --output=none --set-exit-if-changed lib test` completed successfully.
+- Static analysis completed with no issues.
+- All 2 automated tests passed.
+- Android debug APK generation completed successfully.
+- The generated `0.1.1+2` APK passed Android signature verification using the debug certificate.
+
 ## [0.1.0] - 2026-08-11
 
 Initial MVP release.

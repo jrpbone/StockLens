@@ -1,5 +1,24 @@
 <div align="center">
 
+<img src="assets/branding/stocklens_icon.png" alt="StockLens logo" width="128" />
+
+<h1>StockLens</h1>
+
+<h3>Scan. Find. Manage.</h3>
+
+<p>An offline-first barcode inventory system for Android, built with Flutter.</p>
+
+<p>
+  <img src="https://img.shields.io/badge/Flutter-3.44.0-02569B?logo=flutter&logoColor=white" alt="Flutter 3.44.0" />
+  <img src="https://img.shields.io/badge/Dart-3.12.0-0175C2?logo=dart&logoColor=white" alt="Dart 3.12.0" />
+  <img src="https://img.shields.io/badge/SQLite-Offline-003B57?logo=sqlite&logoColor=white" alt="SQLite offline storage" />
+  <img src="https://img.shields.io/badge/Android-API%2024%2B-3DDC84?logo=android&logoColor=white" alt="Android API 24 or newer" />
+  <img src="https://img.shields.io/badge/Material-3-6750A4?logo=materialdesign&logoColor=white" alt="Material 3" />
+  <img src="https://img.shields.io/badge/Version-0.1.1-176B5B" alt="Version 0.1.1" />
+</p>
+
+</div>
+
 ---
 
 ## Overview
@@ -14,7 +33,7 @@ StockLens turns an Android phone into a simple inventory terminal. Scan a retail
 ```
 
 > [!NOTE]
-> StockLens v0.1.0 is an offline-first MVP. Products are stored locally on the device and the repository boundary is ready for a future REST API.
+> StockLens v0.1.1 is an offline-first MVP. Products are stored locally on the device and the repository boundary is ready for a future REST API.
 
 ## Highlights
 
@@ -223,25 +242,25 @@ This requirement is entirely local to Windows and does not connect to a phone. A
 StockLens includes a PowerShell launcher that restores packages and starts the application from the correct project directory:
 
 ```powershell
-.\run_stocklens.ps1
+.\tools\run_stocklens.ps1
 ```
 
 Select a specific Flutter device or emulator:
 
 ```powershell
-.\run_stocklens.ps1 -Device <device-id>
+.\tools\run_stocklens.ps1 -Device <device-id>
 ```
 
 Skip package restoration and forward additional options to `flutter run`:
 
 ```powershell
-.\run_stocklens.ps1 -SkipPubGet --debug
+.\tools\run_stocklens.ps1 -SkipPubGet --debug
 ```
 
 Use `flutter devices` to find available device IDs. If Windows blocks local scripts, run the launcher for the current session with:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\run_stocklens.ps1
+powershell -ExecutionPolicy Bypass -File .\tools\run_stocklens.ps1
 ```
 
 Developer Mode is a one-time Windows configuration. It can also be opened manually with:
@@ -276,41 +295,83 @@ flutter test
 Use the PowerShell build assistant to collect and validate application metadata before creating a package:
 
 ```powershell
-.\build_stocklens.ps1
+.\tools\build_stocklens.ps1
+```
+
+The script opens this menu—no target argument is needed for a normal interactive build:
+
+```text
+Select a build target
+----------------------------------------
+[1] Android (default)
+    Build an APK or Android App Bundle
+[2] iOS
+    Build locally on macOS or remotely with GitHub Actions
+[3] Both
+    Build Android locally and iOS locally or through GitHub Actions
 ```
 
 The assistant prompts for:
 
-- Application display name and Android application ID
+- Build target: Android, iOS, or both platforms
+- Application display name and Android application ID when Android is selected
 - Semantic version and positive build number
-- APK or Android App Bundle output
+- APK or Android App Bundle output when Android is selected
+- Unsigned iOS application archive when iOS is selected
 - Debug, profile, or release mode
 - Clean build, dependency restoration, analysis, and tests
 - Release obfuscation and per-ABI APK splitting
 - Final confirmation before any build begins
 
-Build artifacts are copied into a versioned `dist/` directory with a SHA-256 checksum and `build-manifest.json`. Prompted app-name and application-ID changes are embedded in the artifact temporarily; the project source files are restored when the build completes or fails.
+Build artifacts are copied into a versioned `dist/` directory with SHA-256 checksums and `build-manifest.json`. Prompted app-name and application-ID changes are embedded in the Android artifact temporarily; the project source files are restored when the build completes or fails.
+
+Select `android`, `ios`, or `both` when prompted. Android targets can produce an APK or Android App Bundle. iOS targets build `Runner.app` for a physical device without code signing and package it as a versioned ZIP. On macOS with Xcode, the iOS build runs locally. On Windows or Linux, the assistant dispatches the `iOS Remote Build` GitHub Actions workflow to a macOS runner, waits for it, downloads the artifact, and verifies its SHA-256 checksum. For `both`, Android builds locally while iOS uses the appropriate local or remote path.
+
+Before the first remote iOS build:
+
+1. Create a GitHub repository and add it as this checkout's `origin`.
+2. Commit and push the project, including `.github/workflows/ios-remote-build.yml`.
+3. Create a fine-grained GitHub token for that repository with **Contents: Read** and **Actions: Read and write**.
+4. Run the assistant and paste the token into its secure prompt. The token is held only for that run and is not saved. Non-interactive automation can instead provide `GITHUB_TOKEN` or `GH_TOKEN` through the environment.
+
+Remote builds deliberately stop when local changes or unpushed commits exist because GitHub can only build the pushed repository state.
 
 The build assistant only creates package files. It does not enumerate, connect to, or install anything on a phone.
 
-For automation, pass metadata non-interactively:
+The `-Target` parameter is only needed for automation with `-NonInteractive`:
 
 ```powershell
-.\build_stocklens.ps1 `
+.\tools\build_stocklens.ps1 `
   -NonInteractive `
+  -Target android `
   -Format apk `
   -Mode release `
-  -VersionName 0.1.0 `
-  -BuildNumber 1 `
+  -VersionName 0.1.1 `
+  -BuildNumber 2 `
   -AppName StockLens `
   -ApplicationId com.example.stocklens `
   -Obfuscate
 ```
 
+Create only an unsigned iOS application archive locally on macOS or remotely from Windows/Linux:
+
+```powershell
+.\tools\build_stocklens.ps1 `
+  -NonInteractive `
+  -Target ios `
+  -Mode release `
+  -VersionName 0.1.1 `
+  -BuildNumber 2 `
+  -AppName StockLens `
+  -Obfuscate
+```
+
+Use `-Target both` to create Android and iOS artifacts in the same versioned output directory.
+
 > [!WARNING]
 > The current Android release configuration uses the debug signing key. The assistant reports this during release builds, but a production keystore must be configured before Play Store distribution.
 
-### v0.1.0 verification
+### v0.1.1 verification
 
 | Check                          |                       Result                       |
 | ------------------------------ | :------------------------------------------------: |
@@ -319,7 +380,7 @@ For automation, pass metadata non-interactively:
 | Product JSON round-trip        |                 **Covered**                 |
 | Nullable product image updates |                 **Covered**                 |
 | Dashboard widget smoke test    |                 **Covered**                 |
-| Android debug APK              | **Blocked locally: Android SDK unavailable** |
+| Android debug APK              |       **Automated CI artifact**        |
 | Physical-device scanner test   |                 **Pending**                 |
 
 ## Sample inventory
@@ -335,40 +396,9 @@ The local database seeds these products only when it is empty:
 
 ## Release
 
-The current release is **v0.1.0** (`0.1.0+1`) - the initial functional MVP.
+The current release is **v0.1.1** (`0.1.1+2`) - the initial functional MVP with automated Android verification and installable CI artifacts.
 
 Read the complete release record in [CHANGELOG.md](CHANGELOG.md).
-
-## Roadmap
-
-The complete prioritized product and engineering backlog is maintained in [TODO.md](TODO.md).
-
-### Now - v0.1.0
-
-- [X] Offline SQLite product catalog
-- [X] Barcode scanning and lookup
-- [X] Product create and edit workflows
-- [X] Inventory search, filters, and sorting
-- [X] Stock adjustment with negative-stock protection
-- [X] Product image selection
-
-### Next
-
-- [ ] Configure Android CI and produce installable APK artifacts
-- [ ] Validate scanning and permissions on physical Android devices
-- [ ] Persist stock transaction history and adjustment reasons
-- [ ] Add product deletion with confirmation and recovery strategy
-- [ ] Move selected product images into permanent app storage
-
-### Later
-
-- [ ] Authentication with admin and employee roles
-- [ ] REST API and cloud synchronization
-- [ ] Audit logs, sales tracking, and low-stock notifications
-- [ ] Category, supplier, store, and branch management
-- [ ] Customer price-check mode
-- [ ] CSV/PDF exports, inventory reports, and dashboard statistics
-- [ ] Expanded QR code workflows
 
 ## Current limitations
 
@@ -376,7 +406,7 @@ The complete prioritized product and engineering backlog is maintained in [TODO.
 - Product images currently reference local device files.
 - Adjustment reasons are selected in the interface but transaction history is not persisted yet.
 - Authentication and role-based authorization are not included.
-- Product deletion is not available in v0.1.0.
+- Product deletion is not currently available.
 - Barcode scanning still needs physical-device validation.
 
 ## Contributing
@@ -389,5 +419,3 @@ Contributions, bug reports, and feature proposals are welcome. Before opening a 
 4. Document user-visible changes in `CHANGELOG.md`.
 
 ---
-
-<div align="center">

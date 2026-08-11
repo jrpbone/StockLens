@@ -17,8 +17,6 @@ An offline-first barcode inventory system built specifically for Android.
   <img src="https://img.shields.io/badge/Version-0.2.0-176B5B" alt="Version 0.2.0" />
 </p>
 
-[![Android CI](https://github.com/jrpbone/StockLens/actions/workflows/android-ci.yml/badge.svg)](https://github.com/jrpbone/StockLens/actions/workflows/android-ci.yml)
-
 </div>
 
 ---

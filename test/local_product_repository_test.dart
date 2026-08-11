@@ -31,7 +31,7 @@ void main() {
   });
 
   Product product({String id = 'product-1', int quantity = 10}) {
-    final now = DateTime.utc(2026, 8, 12);
+    final now = DateTime.utc(2020);
     return Product(
       id: id,
       barcode: '4801234567890',

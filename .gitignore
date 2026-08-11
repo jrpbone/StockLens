@@ -49,5 +49,6 @@ app.*.map.json
 /android/app/*.jks
 /android/app/*.keystore
 
+SIGNING.md
 TODO.md
 dist

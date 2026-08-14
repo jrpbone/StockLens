@@ -55,41 +55,10 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   Future<void> _manualEntry() async {
-    final input = TextEditingController();
     final code = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Enter Barcode'),
-        content: TextField(
-          controller: input,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          textInputAction: TextInputAction.done,
-          decoration: const InputDecoration(
-            labelText: 'Barcode',
-            prefixIcon: Icon(Icons.qr_code),
-          ),
-          onSubmitted: (value) {
-            final barcode = value.trim();
-            if (barcode.isNotEmpty) Navigator.pop(context, barcode);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final barcode = input.text.trim();
-              if (barcode.isNotEmpty) Navigator.pop(context, barcode);
-            },
-            child: const Text('Look Up'),
-          ),
-        ],
-      ),
+      builder: (context) => const _ManualBarcodeDialog(),
     );
-    input.dispose();
     if (code != null && mounted) {
       await _handleCode(code, scannerFeedback: false);
     }
@@ -258,6 +227,45 @@ class _ScannerScreenState extends State<ScannerScreen>
         ),
       ],
     ),
+  );
+}
+
+class _ManualBarcodeDialog extends StatefulWidget {
+  const _ManualBarcodeDialog();
+
+  @override
+  State<_ManualBarcodeDialog> createState() => _ManualBarcodeDialogState();
+}
+
+class _ManualBarcodeDialogState extends State<_ManualBarcodeDialog> {
+  String _barcode = '';
+
+  void _submit([String? value]) {
+    final barcode = (value ?? _barcode).trim();
+    if (barcode.isNotEmpty) Navigator.pop(context, barcode);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Enter Barcode'),
+    content: TextField(
+      autofocus: true,
+      keyboardType: TextInputType.number,
+      textInputAction: TextInputAction.done,
+      decoration: const InputDecoration(
+        labelText: 'Barcode',
+        prefixIcon: Icon(Icons.qr_code),
+      ),
+      onChanged: (value) => _barcode = value,
+      onSubmitted: _submit,
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _submit, child: const Text('Look Up')),
+    ],
   );
 }
 

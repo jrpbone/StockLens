@@ -8,45 +8,23 @@ import '../add_product/add_product_screen.dart';
 import '../product_details/product_details_screen.dart';
 
 class ScannerScreen extends StatefulWidget {
-  const ScannerScreen({super.key, required this.service});
+  const ScannerScreen({
+    super.key,
+    required this.service,
+    required this.controller,
+  });
   final ProductService service;
+  final MobileScannerController controller;
 
   @override
   State<ScannerScreen> createState() => _ScannerScreenState();
 }
 
-class _ScannerScreenState extends State<ScannerScreen>
-    with WidgetsBindingObserver {
-  late final MobileScannerController _controller;
+class _ScannerScreenState extends State<ScannerScreen> {
   final _barcodeService = BarcodeService();
   bool _handling = false;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.normal,
-      detectionTimeoutMs: 500,
-    );
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_controller.value.hasCameraPermission) return;
-    if (state == AppLifecycleState.resumed) {
-      _controller.start();
-    } else if (state == AppLifecycleState.inactive) {
-      _controller.stop();
-    }
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _controller.dispose();
-    super.dispose();
-  }
+  MobileScannerController get _controller => widget.controller;
 
   Future<void> _onDetect(BarcodeCapture capture) async {
     final code = capture.barcodes.firstOrNull?.rawValue?.trim();

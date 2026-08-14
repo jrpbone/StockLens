@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../data/local/app_database.dart';
 import '../models/product.dart';
+import '../models/sale_order.dart';
 import '../models/stock_transaction.dart';
 import 'product_repository.dart';
 
@@ -292,6 +293,151 @@ class LocalProductRepository implements ProductRepository {
   }
 
   @override
+  Future<SaleOrder> completeSale(List<SaleRequestItem> items) async {
+    if (items.isEmpty) throw const EmptySaleException();
+    final quantities = <String, int>{};
+    for (final item in items) {
+      if (item.quantity <= 0) throw const EmptySaleException();
+      quantities.update(
+        item.productId,
+        (quantity) => quantity + item.quantity,
+        ifAbsent: () => item.quantity,
+      );
+    }
+
+    final db = await _database.database;
+    return db.transaction((txn) async {
+      final products = <Product>[];
+      for (final entry in quantities.entries) {
+        final rows = await txn.query(
+          'products',
+          where: 'id = ? AND archived_at IS NULL',
+          whereArgs: [entry.key],
+          limit: 1,
+        );
+        if (rows.isEmpty) throw ProductMissingForSaleException(entry.key);
+        final product = Product.fromJson(rows.first);
+        if (!product.price.isFinite || product.price < 0) {
+          throw InvalidProductPriceException(product.name);
+        }
+        if (product.quantity < entry.value) {
+          throw ProductUnavailableException(product.name, product.quantity);
+        }
+        products.add(product);
+      }
+
+      final now = DateTime.now();
+      final date = _datePart(now);
+      final time = _timePart(now);
+      final lastSequence =
+          Sqflite.firstIntValue(
+            await txn.rawQuery(
+              'SELECT COALESCE(MAX(CAST(SUBSTR(order_number, 14) AS INTEGER)), 0) '
+              'FROM orders WHERE transaction_date = ?',
+              [date],
+            ),
+          ) ??
+          0;
+      final compactDate = date.replaceAll('-', '');
+      final orderNumber =
+          'ORD-$compactDate-${(lastSequence + 1).toString().padLeft(4, '0')}';
+      final orderId = const Uuid().v4();
+
+      final orderItems = <SaleOrderItem>[];
+      var totalCents = 0;
+      var totalQuantity = 0;
+      for (final product in products) {
+        final quantity = quantities[product.id]!;
+        final unitPriceCents = (product.price * 100).round();
+        final subtotalCents = unitPriceCents * quantity;
+        totalCents += subtotalCents;
+        totalQuantity += quantity;
+        orderItems.add(
+          SaleOrderItem(
+            id: const Uuid().v4(),
+            orderId: orderId,
+            productId: product.id,
+            productName: product.name,
+            sku: product.barcode,
+            barcode: product.barcode,
+            quantity: quantity,
+            unitPriceCents: unitPriceCents,
+            subtotalCents: subtotalCents,
+            createdAt: now,
+          ),
+        );
+      }
+      final order = SaleOrder(
+        id: orderId,
+        orderNumber: orderNumber,
+        transactionDate: date,
+        transactionTime: time,
+        totalAmountCents: totalCents,
+        totalItems: orderItems.length,
+        totalQuantity: totalQuantity,
+        createdAt: now,
+        items: orderItems,
+      );
+      await txn.insert('orders', order.toJson());
+
+      for (var index = 0; index < products.length; index++) {
+        final product = products[index];
+        final orderItem = orderItems[index];
+        final resultingQuantity = product.quantity - orderItem.quantity;
+        final changed = await txn.rawUpdate(
+          'UPDATE products SET quantity = ?, updated_at = ? '
+          'WHERE id = ? AND archived_at IS NULL AND quantity >= ?',
+          [
+            resultingQuantity,
+            now.toIso8601String(),
+            product.id,
+            orderItem.quantity,
+          ],
+        );
+        if (changed != 1) {
+          throw ProductUnavailableException(product.name, product.quantity);
+        }
+        await txn.insert('order_items', orderItem.toJson());
+        await txn.insert(
+          'stock_transactions',
+          StockTransaction(
+            id: const Uuid().v4(),
+            productId: product.id,
+            delta: -orderItem.quantity,
+            reason: 'POS sale',
+            note: orderNumber,
+            previousQuantity: product.quantity,
+            resultingQuantity: resultingQuantity,
+            occurredAt: now,
+          ).toJson(),
+        );
+      }
+      return order;
+    });
+  }
+
+  @override
+  Future<List<SaleOrder>> getOrders() async {
+    final db = await _database.database;
+    final orderRows = await db.query('orders', orderBy: 'created_at DESC');
+    if (orderRows.isEmpty) return [];
+    final itemRows = await db.query('order_items', orderBy: 'created_at ASC');
+    final itemsByOrder = <String, List<SaleOrderItem>>{};
+    for (final row in itemRows) {
+      final item = SaleOrderItem.fromJson(row);
+      itemsByOrder.putIfAbsent(item.orderId, () => []).add(item);
+    }
+    return orderRows
+        .map(
+          (row) => SaleOrder.fromJson(
+            row,
+            items: itemsByOrder[row['id']] ?? const [],
+          ),
+        )
+        .toList();
+  }
+
+  @override
   Future<Product> setArchived(
     String productId, {
     required bool archived,
@@ -329,20 +475,23 @@ class LocalProductRepository implements ProductRepository {
     final db = await _database.database;
     return {
       'format': 'stocklens-backup',
-      'schema_version': 1,
+      'schema_version': 2,
       'created_at': DateTime.now().toUtc().toIso8601String(),
       'products': await db.query('products', orderBy: 'created_at ASC'),
       'stock_transactions': await db.query(
         'stock_transactions',
         orderBy: 'occurred_at ASC',
       ),
+      'orders': await db.query('orders', orderBy: 'created_at ASC'),
+      'order_items': await db.query('order_items', orderBy: 'created_at ASC'),
     };
   }
 
   @override
   Future<void> restoreBackup(Map<String, Object?> backup) async {
+    final schemaVersion = backup['schema_version'];
     if (backup['format'] != 'stocklens-backup' ||
-        backup['schema_version'] != 1) {
+        (schemaVersion != 1 && schemaVersion != 2)) {
       throw const FormatException('Unsupported StockLens backup file.');
     }
     final rawProducts = backup['products'];
@@ -384,9 +533,60 @@ class LocalProductRepository implements ProductRepository {
       }
       return transaction;
     }).toList();
+    final rawOrders = backup['orders'] ?? const <Object?>[];
+    final rawOrderItems = backup['order_items'] ?? const <Object?>[];
+    if (rawOrders is! List || rawOrderItems is! List) {
+      throw const FormatException('Backup sales data is invalid.');
+    }
+    final orders = rawOrders.map((value) {
+      if (value is! Map) throw const FormatException('Invalid order data.');
+      final order = SaleOrder.fromJson(Map<String, Object?>.from(value));
+      if (order.id.isEmpty ||
+          order.orderNumber.isEmpty ||
+          order.totalAmountCents < 0 ||
+          order.totalItems <= 0 ||
+          order.totalQuantity <= 0) {
+        throw const FormatException('Invalid order data.');
+      }
+      return order;
+    }).toList();
+    final orderIds = orders.map((order) => order.id).toSet();
+    if (orderIds.length != orders.length) {
+      throw const FormatException('Backup contains duplicate order IDs.');
+    }
+    final orderItems = rawOrderItems.map((value) {
+      if (value is! Map) {
+        throw const FormatException('Invalid order item data.');
+      }
+      final item = SaleOrderItem.fromJson(Map<String, Object?>.from(value));
+      if (!orderIds.contains(item.orderId) ||
+          item.id.isEmpty ||
+          item.productId.isEmpty ||
+          item.productName.isEmpty ||
+          item.quantity <= 0 ||
+          item.unitPriceCents < 0 ||
+          item.subtotalCents != item.quantity * item.unitPriceCents) {
+        throw const FormatException('Invalid order item data.');
+      }
+      return item;
+    }).toList();
+    for (final order in orders) {
+      final items = orderItems
+          .where((item) => item.orderId == order.id)
+          .toList();
+      if (items.length != order.totalItems ||
+          items.fold<int>(0, (sum, item) => sum + item.quantity) !=
+              order.totalQuantity ||
+          items.fold<int>(0, (sum, item) => sum + item.subtotalCents) !=
+              order.totalAmountCents) {
+        throw const FormatException('Order totals do not match its items.');
+      }
+    }
 
     final db = await _database.database;
     await db.transaction((txn) async {
+      await txn.delete('order_items');
+      await txn.delete('orders');
       await txn.delete('stock_transactions');
       await txn.delete('products');
       for (final product in products) {
@@ -395,6 +595,22 @@ class LocalProductRepository implements ProductRepository {
       for (final transaction in transactions) {
         await txn.insert('stock_transactions', transaction.toJson());
       }
+      for (final order in orders) {
+        await txn.insert('orders', order.toJson());
+      }
+      for (final item in orderItems) {
+        await txn.insert('order_items', item.toJson());
+      }
     });
   }
+
+  String _datePart(DateTime value) =>
+      '${value.year.toString().padLeft(4, '0')}-'
+      '${value.month.toString().padLeft(2, '0')}-'
+      '${value.day.toString().padLeft(2, '0')}';
+
+  String _timePart(DateTime value) =>
+      '${value.hour.toString().padLeft(2, '0')}:'
+      '${value.minute.toString().padLeft(2, '0')}:'
+      '${value.second.toString().padLeft(2, '0')}';
 }

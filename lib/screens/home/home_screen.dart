@@ -130,12 +130,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 _ActionCard(
                   icon: Icons.search,
                   title: 'Search Product',
-                  onTap: () => widget.onSelectTab(3),
+                  onTap: () => widget.onSelectTab(4),
                 ),
                 _ActionCard(
                   icon: Icons.inventory_2_outlined,
                   title: 'Inventory',
-                  onTap: () => widget.onSelectTab(2),
+                  onTap: () => widget.onSelectTab(3),
                 ),
                 _ActionCard(
                   icon: Icons.add_box_outlined,

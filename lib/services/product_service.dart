@@ -5,6 +5,8 @@ import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import '../models/product.dart';
+import '../models/pos_cart_item.dart';
+import '../models/sale_order.dart';
 import '../models/stock_transaction.dart';
 import '../repositories/product_repository.dart';
 import 'product_image_storage.dart';
@@ -29,6 +31,32 @@ class ProductService {
       _repository.getArchivedProducts(query: query);
   Future<List<StockTransaction>> stockTransactions(String productId) =>
       _repository.getStockTransactions(productId);
+  Future<List<SaleOrder>> orders() => _repository.getOrders();
+
+  Future<List<PosCartItem>> revalidateSale(List<PosCartItem> cart) async {
+    if (cart.isEmpty) throw const EmptySaleException();
+    final refreshed = <PosCartItem>[];
+    for (final item in cart) {
+      final product = await _repository.getById(item.productId);
+      if (product == null || product.archivedAt != null) {
+        throw ProductMissingForSaleException(item.productId);
+      }
+      if (!product.price.isFinite || product.price < 0) {
+        throw InvalidProductPriceException(product.name);
+      }
+      if (product.quantity < item.quantity) {
+        throw ProductUnavailableException(product.name, product.quantity);
+      }
+      refreshed.add(PosCartItem.fromProduct(product, quantity: item.quantity));
+    }
+    return refreshed;
+  }
+
+  Future<SaleOrder> completeSale(List<PosCartItem> cart) =>
+      _repository.completeSale([
+        for (final item in cart)
+          SaleRequestItem(productId: item.productId, quantity: item.quantity),
+      ]);
 
   Future<Product> add({
     required String barcode,

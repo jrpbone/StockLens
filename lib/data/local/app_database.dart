@@ -16,7 +16,7 @@ class AppDatabase {
         _overridePath ?? p.join(await getDatabasesPath(), 'stocklens.db');
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, _) => _createSchema(db),
       onUpgrade: (db, oldVersion, _) async {
@@ -25,6 +25,7 @@ class AppDatabase {
           await _createTransactionsTable(db);
           await _createMetadataTable(db);
         }
+        if (oldVersion < 3) await _createSalesTables(db);
       },
     );
   }
@@ -55,6 +56,7 @@ class AppDatabase {
     );
     await _createTransactionsTable(db);
     await _createMetadataTable(db);
+    await _createSalesTables(db);
   }
 
   Future<void> _createMetadataTable(Database db) => db.execute('''
@@ -81,6 +83,42 @@ class AppDatabase {
     await db.execute(
       'CREATE INDEX idx_transactions_product_date '
       'ON stock_transactions(product_id, occurred_at DESC)',
+    );
+  }
+
+  Future<void> _createSalesTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE orders (
+        id TEXT PRIMARY KEY,
+        order_number TEXT NOT NULL UNIQUE,
+        transaction_date TEXT NOT NULL,
+        transaction_time TEXT NOT NULL,
+        total_amount_cents INTEGER NOT NULL CHECK(total_amount_cents >= 0),
+        total_items INTEGER NOT NULL CHECK(total_items > 0),
+        total_quantity INTEGER NOT NULL CHECK(total_quantity > 0),
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_orders_created_at ON orders(created_at DESC)',
+    );
+    await db.execute('''
+      CREATE TABLE order_items (
+        id TEXT PRIMARY KEY,
+        order_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        product_name TEXT NOT NULL,
+        sku TEXT NOT NULL,
+        barcode TEXT NOT NULL,
+        quantity INTEGER NOT NULL CHECK(quantity > 0),
+        unit_price_cents INTEGER NOT NULL CHECK(unit_price_cents >= 0),
+        subtotal_cents INTEGER NOT NULL CHECK(subtotal_cents >= 0),
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_order_items_order ON order_items(order_id)',
     );
   }
 }

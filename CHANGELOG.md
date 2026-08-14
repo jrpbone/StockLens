@@ -8,10 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Added a complete POS workflow with camera/manual barcode entry, stock-aware cart controls, live totals, confirmation, and atomic checkout.
+- Added persistent order history grouped by date with expandable snapshot-based line-item details.
+- Added SQLite sales backup/restore and coverage for checkout rollback, historical snapshots, order numbering, and schema migration.
 - Added an Android release-signing setup assistant with safe local credential handling.
 
 ### Changed
 
+- Upgraded the database to schema version 3 with `orders` and `order_items` tables using integer centavos for sale totals.
+- Serialized Scan/POS camera ownership through one shared controller so direct tab switches cannot race native camera teardown and startup.
 - Reduced the packaging assistant to a focused Android-only APK/AAB workflow while preserving interactive metadata, checks, obfuscation, ABI splitting, checksums, and build manifests.
 - Restricted the run assistant to connected Android devices and emulators so it cannot accidentally launch an unsupported desktop or browser target.
 - Reworked the README as an Android-only project showcase while keeping the technology stack prominent at the top.

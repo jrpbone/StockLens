@@ -2,9 +2,7 @@
 
 All notable changes to StockLens are recorded in this file.
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
+## [0.3.1] - 2026-08-12
 
 ### Changed
 

@@ -3,7 +3,11 @@ class Product {
     required this.id,
     required this.barcode,
     required this.name,
-    required this.price,
+    double? sellingPrice,
+    double? price,
+    this.costPrice = 0,
+    this.lowStockThreshold = 5,
+    this.lowStockNotified = false,
     required this.category,
     required this.description,
     required this.quantity,
@@ -11,12 +15,16 @@ class Product {
     this.archivedAt,
     required this.createdAt,
     required this.updatedAt,
-  });
+  }) : assert(sellingPrice != null || price != null),
+       sellingPrice = sellingPrice ?? price ?? 0;
 
   final String id;
   final String barcode;
   final String name;
-  final double price;
+  final double sellingPrice;
+  final double costPrice;
+  final int lowStockThreshold;
+  final bool lowStockNotified;
   final String category;
   final String description;
   final int quantity;
@@ -25,11 +33,19 @@ class Product {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// Compatibility accessor while persisted SQLite rows continue using `price`.
+  double get price => sellingPrice;
+
+  bool get isLowStock => archivedAt == null && quantity <= lowStockThreshold;
+
   factory Product.fromJson(Map<String, Object?> json) => Product(
     id: json['id'] as String? ?? '',
     barcode: json['barcode'] as String? ?? '',
     name: json['name'] as String? ?? '',
-    price: (json['price'] as num?)?.toDouble() ?? 0,
+    sellingPrice: _double(json['price'] ?? json['selling_price']),
+    costPrice: _double(json['cost_price']),
+    lowStockThreshold: _int(json['low_stock_threshold'], 5),
+    lowStockNotified: _bool(json['low_stock_notified']),
     category: json['category'] as String? ?? 'Uncategorized',
     description: json['description'] as String? ?? '',
     quantity: (json['quantity'] as num?)?.toInt() ?? 0,
@@ -46,11 +62,21 @@ class Product {
   static DateTime? _nullableDate(Object? value) =>
       value == null ? null : DateTime.tryParse(value.toString());
 
+  static double _double(Object? value) => (value as num?)?.toDouble() ?? 0;
+
+  static int _int(Object? value, int fallback) =>
+      (value as num?)?.toInt() ?? fallback;
+
+  static bool _bool(Object? value) => value == true || value == 1;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'barcode': barcode,
     'name': name,
-    'price': price,
+    'price': sellingPrice,
+    'cost_price': costPrice,
+    'low_stock_threshold': lowStockThreshold,
+    'low_stock_notified': lowStockNotified ? 1 : 0,
     'category': category,
     'description': description,
     'quantity': quantity,
@@ -64,7 +90,11 @@ class Product {
     String? id,
     String? barcode,
     String? name,
+    double? sellingPrice,
     double? price,
+    double? costPrice,
+    int? lowStockThreshold,
+    bool? lowStockNotified,
     String? category,
     String? description,
     int? quantity,
@@ -76,7 +106,10 @@ class Product {
     id: id ?? this.id,
     barcode: barcode ?? this.barcode,
     name: name ?? this.name,
-    price: price ?? this.price,
+    sellingPrice: sellingPrice ?? price ?? this.sellingPrice,
+    costPrice: costPrice ?? this.costPrice,
+    lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
+    lowStockNotified: lowStockNotified ?? this.lowStockNotified,
     category: category ?? this.category,
     description: description ?? this.description,
     quantity: quantity ?? this.quantity,

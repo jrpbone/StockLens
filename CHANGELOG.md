@@ -6,17 +6,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-30
+
+Offline stock control, per-product alerts, local reporting, and atomic CSV imports.
+
 ### Added
 
 - Added a complete POS workflow with camera/manual barcode entry, stock-aware cart controls, live totals, confirmation, and atomic checkout.
 - Added persistent order history grouped by date with expandable snapshot-based line-item details.
 - Added SQLite sales backup/restore and coverage for checkout rollback, historical snapshots, order numbering, and schema migration.
+- Added resumable stocktake sessions for full, category, and individually selected product scopes, including autosaved counts, barcode increments, variance review, stale-preview rejection, and atomic reconciliation.
+- Added per-product low-stock thresholds, an in-app alert center, and optional Android notifications with duplicate suppression and settings recovery.
+- Added offline inventory valuation and movement reports with preset/custom ranges, sales profitability, category totals, fast movers, inactive stock, and legacy-price disclosure.
+- Added previewed barcode-based CSV upserts with strict UTF-8 parsing, row-numbered validation, archived conflicts, stale-preview rejection, atomic apply, and shared import audit IDs.
+- Added separate cost and selling prices plus historical price snapshots on new stock transactions.
+- Added schema-v3 database migrations, stocktake tables, report indexes, and sourced transaction metadata.
+- Added cross-feature regression coverage for backup/restore, stocktake state, CSV audit linkage, and historical reports.
 - Added an Android release-signing setup assistant with safe local credential handling.
 
 ### Changed
 
 - Upgraded the database to schema version 3 with `orders` and `order_items` tables using integer centavos for sale totals.
 - Serialized Scan/POS camera ownership through one shared controller so direct tab switches cannot race native camera teardown and startup.
+- Upgraded complete backups to format version 2 with pricing fields, transaction snapshots/source metadata, sales orders/items, stocktake sessions, and stocktake items while retaining version-1 and both historical version-2 restore shapes.
+- Expanded inventory CSV export with selling price, cost price, low-stock threshold, and archive status.
+- Updated the application version to `0.3.0+4`.
 - Reduced the packaging assistant to a focused Android-only APK/AAB workflow while preserving interactive metadata, checks, obfuscation, ABI splitting, checksums, and build manifests.
 - Restricted the run assistant to connected Android devices and emulators so it cannot accidentally launch an unsupported desktop or browser target.
 - Reworked the README as an Android-only project showcase while keeping the technology stack prominent at the top.
@@ -27,6 +41,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Removed unused iOS, macOS, Linux, Windows, and web platform scaffolding.
 - Removed the remote iOS GitHub Actions workflow and its token/API/build client.
 - Removed duplicate default Android launcher icons that were not referenced by the manifest.
+
+### Dependencies
+
+- Added `csv` for standards-based quoted CSV parsing.
+
+### Verification
+
+- Dart formatting completed successfully.
+- Static analysis completed with no issues.
+- All 137 automated tests passed after combining POS/sales and offline-inventory coverage.
+- Signed release APK and AAB artifacts were generated with SHA-256 records and verified release manifests.
 
 ## [0.2.0] - 2026-08-12
 

@@ -8,8 +8,38 @@ import 'package:share_plus/share_plus.dart';
 
 import 'product_service.dart';
 
+typedef InventoryFilePicker = Future<FilePickerResult?> Function();
+
 class InventoryFileService {
-  const InventoryFileService();
+  const InventoryFileService({this.picker});
+
+  final InventoryFilePicker? picker;
+
+  Future<String?> pickCsv() async {
+    final selection = picker == null
+        ? await FilePicker.platform.pickFiles(
+            type: FileType.custom,
+            allowedExtensions: ['csv'],
+            allowMultiple: false,
+            withData: false,
+          )
+        : await picker!();
+    if (selection == null || selection.files.isEmpty) return null;
+    final selected = selection.files.single;
+    if (p.extension(selected.name).toLowerCase() != '.csv') {
+      throw const FormatException('Select a CSV file.');
+    }
+    final path = selected.path;
+    if (path == null) {
+      throw const FormatException('The selected CSV file is unavailable.');
+    }
+    final file = File(path);
+    if (selected.size > 20 * 1024 * 1024 ||
+        await file.length() > 20 * 1024 * 1024) {
+      throw const FormatException('CSV file is larger than 20 MB.');
+    }
+    return utf8.decode(await file.readAsBytes());
+  }
 
   Future<void> shareBackup(ProductService service) async {
     final backup = await service.createBackup();

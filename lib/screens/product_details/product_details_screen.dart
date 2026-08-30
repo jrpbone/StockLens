@@ -118,6 +118,15 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final product = _product;
+    final unitMargin = product == null
+        ? 0.0
+        : product.sellingPrice - product.costPrice;
+    final costValue = product == null
+        ? 0.0
+        : product.costPrice * product.quantity;
+    final retailValue = product == null
+        ? 0.0
+        : product.sellingPrice * product.quantity;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -176,10 +185,49 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  pesoFormat.format(product.price),
+                  pesoFormat.format(product.sellingPrice),
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      children: [
+                        _Info(
+                          icon: Icons.sell_outlined,
+                          label: 'Selling Price',
+                          value: pesoFormat.format(product.sellingPrice),
+                        ),
+                        const Divider(height: 28),
+                        _Info(
+                          icon: Icons.shopping_bag_outlined,
+                          label: 'Cost Price',
+                          value: pesoFormat.format(product.costPrice),
+                        ),
+                        const Divider(height: 28),
+                        _Info(
+                          icon: Icons.trending_up_outlined,
+                          label: 'Unit Margin',
+                          value: pesoFormat.format(unitMargin),
+                        ),
+                        const Divider(height: 28),
+                        _Info(
+                          icon: Icons.inventory_2_outlined,
+                          label: 'Current Cost Value',
+                          value: pesoFormat.format(costValue),
+                        ),
+                        const Divider(height: 28),
+                        _Info(
+                          icon: Icons.account_balance_wallet_outlined,
+                          label: 'Potential Retail Value',
+                          value: pesoFormat.format(retailValue),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 22),
@@ -204,6 +252,12 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                           icon: Icons.inventory_2_outlined,
                           label: 'Stock',
                           value: '${product.quantity} units',
+                        ),
+                        const Divider(height: 28),
+                        _Info(
+                          icon: Icons.warning_amber_outlined,
+                          label: 'Low-stock Threshold',
+                          value: '${product.lowStockThreshold} units',
                         ),
                       ],
                     ),

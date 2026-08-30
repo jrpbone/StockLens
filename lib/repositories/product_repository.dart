@@ -20,6 +20,7 @@ abstract interface class ProductRepository {
     ProductSort sort,
   });
   Future<List<Product>> getArchivedProducts({String query});
+  Future<List<Product>> getLowStockProducts();
   Future<Product?> getById(String id);
   Future<Product?> getByBarcode(String barcode);
   Future<List<String>> getCategories();
@@ -30,7 +31,10 @@ abstract interface class ProductRepository {
     required int delta,
     required String reason,
     required String note,
+    String source = 'manual',
+    String? sourceId,
   });
+  Future<void> setLowStockNotified(String productId, bool value);
   Future<List<StockTransaction>> getStockTransactions(String productId);
   Future<SaleOrder> completeSale(List<SaleRequestItem> items);
   Future<List<SaleOrder>> getOrders();
@@ -85,4 +89,10 @@ class InvalidProductPriceException implements Exception {
 
   @override
   String toString() => '$productName has an invalid price.';
+}
+
+class ProductReferencedByInProgressStocktakeException implements Exception {
+  const ProductReferencedByInProgressStocktakeException();
+  @override
+  String toString() => 'Product is referenced by an in-progress stocktake.';
 }

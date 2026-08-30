@@ -55,4 +55,5 @@ dist
 
 # Local isolated development worktrees
 /.worktrees/
+.superpowers/
 docs

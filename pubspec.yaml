@@ -11,7 +11,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # build by specifying --build-name and --build-number, respectively.
 # In Android, build-name is used as versionName while build-number used as versionCode.
 # Read more about Android versioning at https://developer.android.com/studio/publish/versioning
-version: 0.2.0+3
+version: 0.3.0+4
 
 environment:
   sdk: ^3.12.0
@@ -36,6 +36,8 @@ dependencies:
   file_picker: ^10.3.3
   share_plus: ^12.0.1
   uuid: ^4.6.0
+  flutter_local_notifications: ^22.3.0
+  csv: ^8.0.0
 
 dev_dependencies:
   flutter_test:
@@ -47,6 +49,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  sqflite_common: ^2.5.11
   sqflite_common_ffi: ^2.4.0+2
   flutter_launcher_icons: ^0.14.4
 

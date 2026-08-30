@@ -42,7 +42,7 @@ class ProductCard extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        pesoFormat.format(product.price),
+                        pesoFormat.format(product.sellingPrice),
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.primary,
                           fontWeight: FontWeight.w700,

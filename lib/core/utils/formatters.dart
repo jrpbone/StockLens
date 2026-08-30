@@ -5,3 +5,5 @@ final pesoFormat = NumberFormat.currency(
   symbol: '₱',
   decimalDigits: 2,
 );
+
+String formatCentavos(int centavos) => pesoFormat.format(centavos / 100);

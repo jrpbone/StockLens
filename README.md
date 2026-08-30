@@ -40,6 +40,8 @@ Camera or manual code  ->  Local SQLite lookup  ->  View, edit, or adjust stock
 | Capability | What it provides |
 | --- | --- |
 | Barcode scanning | Guided camera scanner, flashlight, camera switching, haptics, sound, and duplicate-scan protection |
+| Point of sale | Scanner/manual checkout, stock-aware cart quantities, atomic inventory deductions, and centavo-safe totals |
+| Sales history | Date-grouped orders with expandable product, quantity, price, and subtotal snapshots |
 | Product catalog | Names, barcodes, prices, categories, descriptions, stock, and managed product images |
 | Auditable stock | Atomic adjustments with reasons, notes, before-and-after quantities, and timestamps |
 | Fast inventory | Search by name, barcode, or category with filters and seven sorting modes |
@@ -75,6 +77,15 @@ Camera or manual code  ->  Local SQLite lookup  ->  View, edit, or adjust stock
 - Clear in-stock, low-stock, and out-of-stock badges
 - Permanent app-managed product photos
 
+### Point of sale
+
+- Camera scanning and manual barcode/SKU entry
+- Duplicate scans increase cart quantity without creating duplicate lines
+- Available-stock enforcement during cart editing and checkout revalidation
+- Atomic order creation, line-item snapshots, inventory deductions, and stock audit entries
+- Philippine Peso totals stored as integer centavos
+- Date-grouped, expandable sales and order history
+
 ### Stock history
 
 - Restock, sale, damage, expiry, correction, and custom reasons
@@ -105,6 +116,7 @@ flowchart LR
     Contract --> Local[LocalProductRepository]
     Local --> Products[(products)]
     Local --> History[(stock_transactions)]
+    Local --> Orders[(orders and order_items)]
     Service --> Images[Managed image storage]
 ```
 
@@ -223,8 +235,8 @@ Release credentials are intentionally absent from public CI.
 | --- | :---: |
 | Dart formatting | Passed |
 | Flutter analyzer | No issues |
-| Automated tests | 10 passed |
-| SQLite v1-to-v2 migration | Covered |
+| Automated tests | 16 passed |
+| SQLite v1-to-v3 migration | Covered |
 | Stock history and rollback | Covered |
 | Archive, restore, and deletion | Covered |
 | Backup and CSV behavior | Covered |

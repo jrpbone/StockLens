@@ -16,7 +16,7 @@ class AppDatabase {
         _overridePath ?? p.join(await getDatabasesPath(), 'stocklens.db');
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, _) => _createSchema(db),
       onUpgrade: (db, oldVersion, _) async {
@@ -29,6 +29,7 @@ class AppDatabase {
           await _upgradeToVersion3(db);
           await _createSalesTables(db);
         }
+        if (oldVersion < 4) await _reconcileVersion4Schema(db);
       },
     );
   }
@@ -106,7 +107,7 @@ class AppDatabase {
 
   Future<void> _createSalesTables(Database db) async {
     await db.execute('''
-      CREATE TABLE orders (
+      CREATE TABLE IF NOT EXISTS orders (
         id TEXT PRIMARY KEY,
         order_number TEXT NOT NULL UNIQUE,
         transaction_date TEXT NOT NULL,
@@ -118,10 +119,11 @@ class AppDatabase {
       )
     ''');
     await db.execute(
-      'CREATE INDEX idx_orders_created_at ON orders(created_at DESC)',
+      'CREATE INDEX IF NOT EXISTS idx_orders_created_at '
+      'ON orders(created_at DESC)',
     );
     await db.execute('''
-      CREATE TABLE order_items (
+      CREATE TABLE IF NOT EXISTS order_items (
         id TEXT PRIMARY KEY,
         order_id TEXT NOT NULL,
         product_id TEXT NOT NULL,
@@ -136,7 +138,80 @@ class AppDatabase {
       )
     ''');
     await db.execute(
-      'CREATE INDEX idx_order_items_order ON order_items(order_id)',
+      'CREATE INDEX IF NOT EXISTS idx_order_items_order '
+      'ON order_items(order_id)',
+    );
+  }
+
+  Future<void> _reconcileVersion4Schema(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      table: 'products',
+      column: 'cost_price',
+      definition: 'REAL NOT NULL DEFAULT 0 CHECK(cost_price >= 0)',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'products',
+      column: 'low_stock_threshold',
+      definition: 'INTEGER NOT NULL DEFAULT 5 CHECK(low_stock_threshold >= 0)',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'products',
+      column: 'low_stock_notified',
+      definition:
+          'INTEGER NOT NULL DEFAULT 0 CHECK(low_stock_notified IN (0, 1))',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'stock_transactions',
+      column: 'selling_price_snapshot',
+      definition: 'REAL',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'stock_transactions',
+      column: 'cost_price_snapshot',
+      definition: 'REAL',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'stock_transactions',
+      column: 'source',
+      definition: 'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'stock_transactions',
+      column: 'source_id',
+      definition: 'TEXT',
+    );
+    await _createSalesTables(db);
+    await _createStocktakeTables(db);
+    await _createCoreIndexes(db);
+    await _createVersion3Indexes(db);
+  }
+
+  Future<void> _addColumnIfMissing(
+    Database db, {
+    required String table,
+    required String column,
+    required String definition,
+  }) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    if (columns.any((row) => row['name'] == column)) return;
+    await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');
+  }
+
+  Future<void> _createCoreIndexes(Database db) async {
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_products_name '
+      'ON products(name COLLATE NOCASE)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transactions_product_date '
+      'ON stock_transactions(product_id, occurred_at DESC)',
     );
   }
 
@@ -169,7 +244,7 @@ class AppDatabase {
 
   Future<void> _createStocktakeTables(Database db) async {
     await db.execute('''
-      CREATE TABLE stocktake_sessions (
+      CREATE TABLE IF NOT EXISTS stocktake_sessions (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         status TEXT NOT NULL CHECK(status IN ('in_progress', 'completed')),
@@ -180,7 +255,7 @@ class AppDatabase {
       )
     ''');
     await db.execute('''
-      CREATE TABLE stocktake_items (
+      CREATE TABLE IF NOT EXISTS stocktake_items (
         session_id TEXT NOT NULL,
         product_id TEXT NOT NULL,
         expected_quantity INTEGER NOT NULL CHECK(expected_quantity >= 0),
@@ -195,19 +270,20 @@ class AppDatabase {
 
   Future<void> _createVersion3Indexes(Database db) async {
     await db.execute(
-      'CREATE INDEX idx_products_active_low_stock '
+      'CREATE INDEX IF NOT EXISTS idx_products_active_low_stock '
       'ON products(archived_at, low_stock_threshold, quantity)',
     );
     await db.execute(
-      'CREATE INDEX idx_transactions_date_reason '
+      'CREATE INDEX IF NOT EXISTS idx_transactions_date_reason '
       'ON stock_transactions(occurred_at DESC, reason)',
     );
     await db.execute(
-      'CREATE INDEX idx_stocktake_sessions_status_date '
+      'CREATE INDEX IF NOT EXISTS idx_stocktake_sessions_status_date '
       'ON stocktake_sessions(status, created_at DESC)',
     );
     await db.execute(
-      'CREATE INDEX idx_stocktake_items_product ON stocktake_items(product_id)',
+      'CREATE INDEX IF NOT EXISTS idx_stocktake_items_product '
+      'ON stocktake_items(product_id)',
     );
   }
 }

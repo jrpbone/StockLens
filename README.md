@@ -138,7 +138,8 @@ Camera or manual code  ->  Local SQLite lookup  ->  View, edit, or adjust stock
   stocktake items, with compatibility for both earlier version-2 backup shapes
 - Transactional restore with format validation
 - CSV sharing for active and archived inventory, including cost/selling prices and thresholds
-- Tested database migration from schema versions 1 and 2 to version 3
+- Tested database migration from schema versions 1 and 2, plus both legacy
+  version-3 layouts, to the reconciled version-4 schema
 
 ## Architecture
 
@@ -284,8 +285,8 @@ Release credentials are intentionally absent from public CI.
 | --- | :---: |
 | Dart formatting | Passed |
 | Flutter analyzer | No issues |
-| Automated tests | 137 passed |
-| SQLite v1/v2-to-v3 migration | Covered |
+| Automated tests | 139 passed |
+| SQLite v1/v2 and both legacy v3 layouts to v4 | Covered |
 | Stock history and rollback | Covered |
 | Stocktake, alerts, reports, and CSV import | Covered |
 | Archive, restore, and deletion | Covered |

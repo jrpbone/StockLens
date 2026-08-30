@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:stocklens/data/local/app_database.dart';
 import 'package:stocklens/models/inventory_report.dart';
+import 'package:stocklens/models/pos_cart_item.dart';
 import 'package:stocklens/models/product.dart';
 import 'package:stocklens/repositories/local_inventory_import_repository.dart';
 import 'package:stocklens/repositories/local_inventory_report_repository.dart';
@@ -73,6 +74,9 @@ void main() {
         productIds: [original.id],
         scopeDescription: 'All products',
       );
+      final order = await productService.completeSale([
+        PosCartItem.fromProduct(original),
+      ]);
       await productService.adjustStock(original, -2, reason: 'Sale', note: '');
       final preview = await importService.preview(
         'barcode,name,selling_price,cost_price,quantity\n'
@@ -81,10 +85,22 @@ void main() {
       await importService.apply(preview);
 
       final backup = await productService.createBackup();
+      expect(backup['orders'], hasLength(1));
+      expect(backup['order_items'], hasLength(1));
+      expect(backup['stocktake_sessions'], hasLength(1));
+      expect(backup['stocktake_items'], hasLength(1));
       await productService.restoreBackup(backup);
 
       expect(await stocktakeService.sessions(), hasLength(1));
       expect((await stocktakeService.sessions()).single.name, 'Open count');
+      final restoredOrders = await productService.orders();
+      expect(restoredOrders, hasLength(1));
+      expect(restoredOrders.single.id, order.id);
+      expect(
+        restoredOrders.single.items.single.productName,
+        'Original product',
+      );
+      expect((await productService.byBarcode('111'))?.quantity, 7);
       final imported = await productService.byBarcode('222');
       expect(imported, isNotNull);
       expect(imported!.quantity, 3);

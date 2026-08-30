@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- Reconciled both historical schema-v3 layouts into schema v4 so upgrades preserve POS sales and offline inventory data while adding whichever tables, columns, and indexes are missing.
+
 ## [0.3.0] - 2026-08-30
 
 Offline stock control, per-product alerts, local reporting, and atomic CSV imports.

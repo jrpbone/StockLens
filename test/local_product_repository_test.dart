@@ -738,7 +738,7 @@ void main() {
   });
 
   test(
-    'clean version 3 database creates stocktake tables and report indexes',
+    'clean version 4 database creates the combined schema and indexes',
     () async {
       final db = await database.database;
       final tables = await db.rawQuery(
@@ -755,6 +755,7 @@ void main() {
         'PRAGMA index_list(stocktake_items)',
       );
 
+      expect(await db.getVersion(), 4);
       expect(
         tables,
         contains(
@@ -892,4 +893,355 @@ void main() {
     expect(migratedHistory.single.source, isNull);
     expect(migratedHistory.single.sourceId, isNull);
   });
+
+  test('shipped POS version 3 database migrates to combined schema', () async {
+    await database.close();
+    final path =
+        '${temporaryDirectory.path}${Platform.pathSeparator}stocklens.db';
+    final legacy = await databaseFactoryFfi.openDatabase(
+      path,
+      options: OpenDatabaseOptions(
+        version: 3,
+        onCreate: (db, _) async {
+          await db.execute('''
+            CREATE TABLE products (
+              id TEXT PRIMARY KEY,
+              barcode TEXT NOT NULL UNIQUE,
+              name TEXT NOT NULL,
+              price REAL NOT NULL,
+              category TEXT NOT NULL,
+              description TEXT NOT NULL DEFAULT '',
+              quantity INTEGER NOT NULL,
+              image_path TEXT,
+              archived_at TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE stock_transactions (
+              id TEXT PRIMARY KEY,
+              product_id TEXT NOT NULL,
+              delta INTEGER NOT NULL,
+              reason TEXT NOT NULL,
+              note TEXT NOT NULL DEFAULT '',
+              previous_quantity INTEGER NOT NULL,
+              resulting_quantity INTEGER NOT NULL,
+              occurred_at TEXT NOT NULL
+            )
+          ''');
+          await db.execute(
+            'CREATE TABLE app_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+          );
+          await db.execute('''
+            CREATE TABLE orders (
+              id TEXT PRIMARY KEY,
+              order_number TEXT NOT NULL UNIQUE,
+              transaction_date TEXT NOT NULL,
+              transaction_time TEXT NOT NULL,
+              total_amount_cents INTEGER NOT NULL,
+              total_items INTEGER NOT NULL,
+              total_quantity INTEGER NOT NULL,
+              created_at TEXT NOT NULL
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE order_items (
+              id TEXT PRIMARY KEY,
+              order_id TEXT NOT NULL,
+              product_id TEXT NOT NULL,
+              product_name TEXT NOT NULL,
+              sku TEXT NOT NULL,
+              barcode TEXT NOT NULL,
+              quantity INTEGER NOT NULL,
+              unit_price_cents INTEGER NOT NULL,
+              subtotal_cents INTEGER NOT NULL,
+              created_at TEXT NOT NULL
+            )
+          ''');
+        },
+      ),
+    );
+    final timestamp = DateTime.utc(2026, 8, 1).toIso8601String();
+    await legacy.insert('products', {
+      'id': 'pos-v3-product',
+      'barcode': 'POS-V3',
+      'name': 'POS v3 Product',
+      'price': 42.5,
+      'category': 'Legacy',
+      'description': 'Preserve me',
+      'quantity': 4,
+      'created_at': timestamp,
+      'updated_at': timestamp,
+    });
+    await legacy.insert('stock_transactions', {
+      'id': 'pos-v3-transaction',
+      'product_id': 'pos-v3-product',
+      'delta': 4,
+      'reason': 'Initial stock',
+      'note': '',
+      'previous_quantity': 0,
+      'resulting_quantity': 4,
+      'occurred_at': timestamp,
+    });
+    await legacy.insert('orders', {
+      'id': 'pos-v3-order',
+      'order_number': 'SL-20260801-0001',
+      'transaction_date': '2026-08-01',
+      'transaction_time': '10:30:00',
+      'total_amount_cents': 4250,
+      'total_items': 1,
+      'total_quantity': 1,
+      'created_at': timestamp,
+    });
+    await legacy.insert('order_items', {
+      'id': 'pos-v3-item',
+      'order_id': 'pos-v3-order',
+      'product_id': 'pos-v3-product',
+      'product_name': 'POS v3 Product',
+      'sku': 'POS-V3',
+      'barcode': 'POS-V3',
+      'quantity': 1,
+      'unit_price_cents': 4250,
+      'subtotal_cents': 4250,
+      'created_at': timestamp,
+    });
+    await legacy.close();
+
+    database = AppDatabase.forTesting(path);
+    repository = LocalProductRepository(database);
+    final db = await database.database;
+    final tables = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'table'",
+    );
+    final indexes = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'index'",
+    );
+    final productColumns = await db.rawQuery('PRAGMA table_info(products)');
+    final transactionColumns = await db.rawQuery(
+      'PRAGMA table_info(stock_transactions)',
+    );
+
+    expect(await db.getVersion(), 4);
+    expect(
+      tables.map((row) => row['name']),
+      containsAll([
+        'orders',
+        'order_items',
+        'stocktake_sessions',
+        'stocktake_items',
+      ]),
+    );
+    expect(
+      productColumns.map((column) => column['name']),
+      containsAll(['cost_price', 'low_stock_threshold', 'low_stock_notified']),
+    );
+    expect(
+      transactionColumns.map((column) => column['name']),
+      containsAll([
+        'selling_price_snapshot',
+        'cost_price_snapshot',
+        'source',
+        'source_id',
+      ]),
+    );
+    expect(
+      indexes.map((row) => row['name']),
+      containsAll([
+        'idx_products_name',
+        'idx_transactions_product_date',
+        'idx_orders_created_at',
+        'idx_order_items_order',
+        'idx_products_active_low_stock',
+        'idx_transactions_date_reason',
+        'idx_stocktake_sessions_status_date',
+        'idx_stocktake_items_product',
+      ]),
+    );
+    expect(
+      (await repository.getById('pos-v3-product'))?.name,
+      'POS v3 Product',
+    );
+    expect((await repository.getOrders()).single.id, 'pos-v3-order');
+    expect(
+      (await repository.getStockTransactions('pos-v3-product')).single.id,
+      'pos-v3-transaction',
+    );
+
+    await database.close();
+    database = AppDatabase.forTesting(path);
+    repository = LocalProductRepository(database);
+    expect(await (await database.database).getVersion(), 4);
+    expect((await repository.getOrders()).single.id, 'pos-v3-order');
+  });
+
+  test(
+    'offline inventory version 3 database migrates to combined schema',
+    () async {
+      await database.close();
+      final path =
+          '${temporaryDirectory.path}${Platform.pathSeparator}stocklens.db';
+      final legacy = await databaseFactoryFfi.openDatabase(
+        path,
+        options: OpenDatabaseOptions(
+          version: 3,
+          onCreate: (db, _) async {
+            await db.execute('''
+              CREATE TABLE products (
+                id TEXT PRIMARY KEY,
+                barcode TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                price REAL NOT NULL,
+                cost_price REAL NOT NULL DEFAULT 0,
+                low_stock_threshold INTEGER NOT NULL DEFAULT 5,
+                low_stock_notified INTEGER NOT NULL DEFAULT 0,
+                category TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                quantity INTEGER NOT NULL,
+                image_path TEXT,
+                archived_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE stock_transactions (
+                id TEXT PRIMARY KEY,
+                product_id TEXT NOT NULL,
+                delta INTEGER NOT NULL,
+                reason TEXT NOT NULL,
+                note TEXT NOT NULL DEFAULT '',
+                previous_quantity INTEGER NOT NULL,
+                resulting_quantity INTEGER NOT NULL,
+                occurred_at TEXT NOT NULL,
+                selling_price_snapshot REAL,
+                cost_price_snapshot REAL,
+                source TEXT,
+                source_id TEXT
+              )
+            ''');
+            await db.execute(
+              'CREATE TABLE app_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+            );
+            await db.execute('''
+              CREATE TABLE stocktake_sessions (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                status TEXT NOT NULL,
+                scope_description TEXT NOT NULL,
+                notes TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                completed_at TEXT
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE stocktake_items (
+                session_id TEXT NOT NULL,
+                product_id TEXT NOT NULL,
+                expected_quantity INTEGER NOT NULL,
+                counted_quantity INTEGER,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(session_id, product_id)
+              )
+            ''');
+          },
+        ),
+      );
+      final timestamp = DateTime.utc(2026, 8, 2).toIso8601String();
+      await legacy.insert('products', {
+        'id': 'offline-v3-product',
+        'barcode': 'OFFLINE-V3',
+        'name': 'Offline v3 Product',
+        'price': 55.0,
+        'cost_price': 30.0,
+        'low_stock_threshold': 8,
+        'low_stock_notified': 1,
+        'category': 'Legacy',
+        'description': 'Preserve me too',
+        'quantity': 6,
+        'created_at': timestamp,
+        'updated_at': timestamp,
+      });
+      await legacy.insert('stock_transactions', {
+        'id': 'offline-v3-transaction',
+        'product_id': 'offline-v3-product',
+        'delta': 6,
+        'reason': 'Initial stock',
+        'note': '',
+        'previous_quantity': 0,
+        'resulting_quantity': 6,
+        'occurred_at': timestamp,
+        'selling_price_snapshot': 55.0,
+        'cost_price_snapshot': 30.0,
+        'source': 'manual',
+        'source_id': 'offline-v3-source',
+      });
+      await legacy.insert('stocktake_sessions', {
+        'id': 'offline-v3-session',
+        'name': 'Legacy count',
+        'status': 'in_progress',
+        'scope_description': 'All products',
+        'notes': '',
+        'created_at': timestamp,
+        'completed_at': null,
+      });
+      await legacy.insert('stocktake_items', {
+        'session_id': 'offline-v3-session',
+        'product_id': 'offline-v3-product',
+        'expected_quantity': 6,
+        'counted_quantity': 5,
+        'updated_at': timestamp,
+      });
+      await legacy.close();
+
+      database = AppDatabase.forTesting(path);
+      repository = LocalProductRepository(database);
+      final db = await database.database;
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type = 'table'",
+      );
+      final indexes = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type = 'index'",
+      );
+
+      expect(await db.getVersion(), 4);
+      expect(
+        tables.map((row) => row['name']),
+        containsAll([
+          'orders',
+          'order_items',
+          'stocktake_sessions',
+          'stocktake_items',
+        ]),
+      );
+      expect(
+        indexes.map((row) => row['name']),
+        containsAll([
+          'idx_products_name',
+          'idx_transactions_product_date',
+          'idx_orders_created_at',
+          'idx_order_items_order',
+          'idx_products_active_low_stock',
+          'idx_transactions_date_reason',
+          'idx_stocktake_sessions_status_date',
+          'idx_stocktake_items_product',
+        ]),
+      );
+      expect((await repository.getById('offline-v3-product'))?.costPrice, 30);
+      expect(
+        (await repository.getStockTransactions(
+          'offline-v3-product',
+        )).single.sourceId,
+        'offline-v3-source',
+      );
+      expect(
+        await db.query(
+          'stocktake_sessions',
+          where: 'id = ?',
+          whereArgs: ['offline-v3-session'],
+        ),
+        hasLength(1),
+      );
+    },
+  );
 }

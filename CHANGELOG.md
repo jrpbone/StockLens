@@ -6,9 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- Upgraded the SQLite database to schema version 4, which reconciles the previously shipped POS and offline-inventory version-3 layouts into one combined schema.
+
 ### Fixed
 
-- Reconciled both historical schema-v3 layouts into schema v4 so upgrades preserve POS sales and offline inventory data while adding whichever tables, columns, and indexes are missing.
+- Preserved existing products, stock transactions, sales orders, and stocktake sessions when upgrading either historical version-3 layout.
+- Made creation of the sales, stocktake, and supporting index structures idempotent so migration adds only the missing schema components.
+
+### Verification
+
+- Added real SQLite migration regressions for both historical version-3 database layouts, including close-and-reopen persistence checks.
+- Expanded cross-feature backup/restore coverage to include POS orders, stocktake sessions, manual stock changes, and CSV imports in the same database.
+- Dart formatting passed, Flutter analysis reported no issues, and all 139 automated tests passed.
+- Android release artifacts were not regenerated for this source-only fix.
 
 ## [0.3.0] - 2026-08-30
 

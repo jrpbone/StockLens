@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/product.dart';
 import '../../services/product_service.dart';
 import '../add_product/add_product_screen.dart';
+import '../alerts/low_stock_alerts_screen.dart';
 import '../product_details/product_details_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -10,9 +11,15 @@ class HomeScreen extends StatefulWidget {
     super.key,
     required this.service,
     required this.onSelectTab,
+    this.onEnableLowStockNotifications,
+    this.onLowStockNotificationsEnabled,
+    this.onOpenLowStockNotificationSettings,
   });
   final ProductService service;
   final ValueChanged<int> onSelectTab;
+  final Future<bool> Function()? onEnableLowStockNotifications;
+  final Future<bool> Function()? onLowStockNotificationsEnabled;
+  final Future<bool> Function()? onOpenLowStockNotificationSettings;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -44,7 +51,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lowStock = _products.where((p) => p.quantity <= 5).length;
+    final lowStock = _products.where((product) => product.isLowStock).length;
+    final outOfStock = _products
+        .where((product) => product.quantity == 0)
+        .length;
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: _load,
@@ -99,12 +109,37 @@ class _HomeScreenState extends State<HomeScreen> {
                   Container(width: 1, height: 44, color: Colors.white24),
                   Expanded(
                     child: _Stat(
+                      onTap: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => LowStockAlertsScreen(
+                              service: widget.service,
+                              onEnableNotifications:
+                                  widget.onEnableLowStockNotifications,
+                              onNotificationsEnabled:
+                                  widget.onLowStockNotificationsEnabled,
+                              onOpenNotificationSettings:
+                                  widget.onOpenLowStockNotificationSettings,
+                            ),
+                          ),
+                        );
+                        if (!mounted) return;
+                        await _load();
+                      },
                       label: 'Low stock',
                       value: _loading ? '—' : '$lowStock',
                     ),
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Text('Out of stock'),
+                const SizedBox(width: 8),
+                Text(_loading ? 'Loading' : '$outOfStock'),
+              ],
             ),
             const SizedBox(height: 28),
             Text(
@@ -169,21 +204,25 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
+  const _Stat({required this.label, required this.value, this.onTap});
   final String label;
   final String value;
+  final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Text(
-        value,
-        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w800,
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: Column(
+      children: [
+        Text(
+          value,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
         ),
-      ),
-      Text(label, style: const TextStyle(color: Colors.white70)),
-    ],
+        Text(label, style: const TextStyle(color: Colors.white70)),
+      ],
+    ),
   );
 }
 

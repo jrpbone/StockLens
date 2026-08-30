@@ -7,13 +7,18 @@ import 'package:uuid/uuid.dart';
 import '../models/product.dart';
 import '../models/stock_transaction.dart';
 import '../repositories/product_repository.dart';
+import 'low_stock_notification_service.dart';
 import 'product_image_storage.dart';
 
 class ProductService {
-  ProductService(this._repository, {ProductImageStorage? imageStorage})
-    : _imageStorage = imageStorage ?? LocalProductImageStorage();
+  ProductService(
+    this._repository, {
+    ProductImageStorage? imageStorage,
+    this.lowStockNotifications,
+  }) : _imageStorage = imageStorage ?? LocalProductImageStorage();
   final ProductRepository _repository;
   final ProductImageStorage _imageStorage;
+  final LowStockNotificationService? lowStockNotifications;
 
   Future<void> initialize() => _repository.initialize();
   Future<List<Product>> products({
@@ -21,6 +26,7 @@ class ProductService {
     String? category,
     ProductSort sort = ProductSort.nameAsc,
   }) => _repository.getProducts(query: query, category: category, sort: sort);
+  Future<List<Product>> lowStockProducts() => _repository.getLowStockProducts();
   Future<Product?> byId(String id) => _repository.getById(id);
   Future<Product?> byBarcode(String barcode) =>
       _repository.getByBarcode(barcode);
@@ -33,19 +39,33 @@ class ProductService {
   Future<Product> add({
     required String barcode,
     required String name,
-    required double price,
+    double? sellingPrice,
+    double? price,
+    double costPrice = 0,
+    int lowStockThreshold = 5,
     required String category,
     required int quantity,
     required String description,
     String? imagePath,
   }) async {
+    final resolvedSellingPrice = sellingPrice ?? price;
+    if (resolvedSellingPrice == null) {
+      throw ArgumentError.notNull('sellingPrice');
+    }
+    _validatePricing(
+      sellingPrice: resolvedSellingPrice,
+      costPrice: costPrice,
+      lowStockThreshold: lowStockThreshold,
+    );
     final now = DateTime.now();
     final permanentImage = await _imageStorage.persist(imagePath);
     final product = Product(
       id: const Uuid().v4(),
       barcode: barcode.trim(),
       name: name.trim(),
-      price: price,
+      sellingPrice: resolvedSellingPrice,
+      costPrice: costPrice,
+      lowStockThreshold: lowStockThreshold,
       category: category.trim().isEmpty ? 'Uncategorized' : category.trim(),
       description: description.trim(),
       quantity: quantity,
@@ -55,36 +75,48 @@ class ProductService {
     );
     try {
       await _repository.add(product);
-      return product;
     } catch (_) {
       if (permanentImage != imagePath) {
         await _imageStorage.delete(permanentImage);
       }
       rethrow;
     }
+    await lowStockNotifications?.evaluate(after: product);
+    return product;
   }
 
   Future<Product> update(Product product) async {
+    _validatePricing(
+      sellingPrice: product.sellingPrice,
+      costPrice: product.costPrice,
+      lowStockThreshold: product.lowStockThreshold,
+    );
     final current = await _repository.getById(product.id);
     if (current == null) throw StateError('Product not found.');
     final permanentImage = await _imageStorage.persist(product.imagePath);
     final updated = product.copyWith(
       quantity: current.quantity,
+      lowStockNotified: current.lowStockNotified,
       imagePath: permanentImage,
       updatedAt: DateTime.now(),
     );
     try {
       await _repository.update(updated);
-      if (current.imagePath != permanentImage) {
-        await _imageStorage.delete(current.imagePath);
-      }
-      return updated;
     } catch (_) {
       if (permanentImage != product.imagePath) {
         await _imageStorage.delete(permanentImage);
       }
       rethrow;
     }
+    await lowStockNotifications?.evaluate(before: current, after: updated);
+    if (current.imagePath != permanentImage) {
+      try {
+        await _imageStorage.delete(current.imagePath);
+      } catch (_) {
+        // The update has committed; stale-image cleanup is best effort.
+      }
+    }
+    return updated;
   }
 
   Future<Product> adjustStock(
@@ -92,18 +124,41 @@ class ProductService {
     int delta, {
     required String reason,
     String note = '',
-  }) => _repository.adjustStock(
-    productId: product.id,
-    delta: delta,
-    reason: reason,
-    note: note,
-  );
+    String source = 'manual',
+    String? sourceId,
+  }) async {
+    final before = await _repository.getById(product.id);
+    final adjusted = await _repository.adjustStock(
+      productId: product.id,
+      delta: delta,
+      reason: reason,
+      note: note,
+      source: source,
+      sourceId: sourceId,
+    );
+    await lowStockNotifications?.evaluate(before: before, after: adjusted);
+    return adjusted;
+  }
+
+  Future<void> setLowStockNotified(String productId, bool value) =>
+      _repository.setLowStockNotified(productId, value);
 
   Future<Product> archive(Product product) =>
-      _repository.setArchived(product.id, archived: true);
+      _setArchived(product, archived: true);
 
   Future<Product> restore(Product product) =>
-      _repository.setArchived(product.id, archived: false);
+      _setArchived(product, archived: false);
+
+  Future<Product> _setArchived(
+    Product product, {
+    required bool archived,
+  }) async {
+    final before = await _repository.getById(product.id);
+    if (before == null) throw StateError('Product not found.');
+    final after = await _repository.setArchived(product.id, archived: archived);
+    await lowStockNotifications?.evaluate(before: before, after: after);
+    return after;
+  }
 
   Future<void> deletePermanently(Product product) async {
     await _repository.deletePermanently(product.id);
@@ -188,7 +243,9 @@ class ProductService {
       [
         'barcode',
         'name',
-        'price',
+        'selling_price',
+        'cost_price',
+        'low_stock_threshold',
         'category',
         'quantity',
         'status',
@@ -201,6 +258,8 @@ class ProductService {
             product['barcode'],
             product['name'],
             product['price'],
+            product['cost_price'],
+            product['low_stock_threshold'],
             product['category'],
             product['quantity'],
             product['archived_at'] == null ? 'active' : 'archived',
@@ -214,5 +273,33 @@ class ProductService {
   String _csvCell(Object? value) {
     final text = value?.toString() ?? '';
     return '"${text.replaceAll('"', '""')}"';
+  }
+
+  void _validatePricing({
+    required double sellingPrice,
+    required double costPrice,
+    required int lowStockThreshold,
+  }) {
+    if (!sellingPrice.isFinite || sellingPrice < 0) {
+      throw ArgumentError.value(
+        sellingPrice,
+        'sellingPrice',
+        'Selling price must be finite and nonnegative.',
+      );
+    }
+    if (!costPrice.isFinite || costPrice < 0) {
+      throw ArgumentError.value(
+        costPrice,
+        'costPrice',
+        'Cost price must be finite and nonnegative.',
+      );
+    }
+    if (lowStockThreshold < 0) {
+      throw ArgumentError.value(
+        lowStockThreshold,
+        'lowStockThreshold',
+        'Low-stock threshold cannot be negative.',
+      );
+    }
   }
 }

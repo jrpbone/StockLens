@@ -1,18 +1,26 @@
 import 'package:flutter/material.dart';
 
 import '../../services/inventory_file_service.dart';
+import '../../services/inventory_import_service.dart';
 import '../../services/product_service.dart';
+import 'inventory_import_screen.dart';
 
 class DataManagementScreen extends StatefulWidget {
-  const DataManagementScreen({super.key, required this.service});
+  const DataManagementScreen({
+    super.key,
+    required this.service,
+    this.importService,
+    this.fileService = const InventoryFileService(),
+  });
   final ProductService service;
+  final InventoryImportService? importService;
+  final InventoryFileService fileService;
 
   @override
   State<DataManagementScreen> createState() => _DataManagementScreenState();
 }
 
 class _DataManagementScreenState extends State<DataManagementScreen> {
-  final _files = const InventoryFileService();
   bool _working = false;
 
   Future<void> _run(Future<void> Function() action, String failure) async {
@@ -53,7 +61,9 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
     if (confirmed != true) return;
     await _run(
       () async {
-        final restored = await _files.pickAndRestoreBackup(widget.service);
+        final restored = await widget.fileService.pickAndRestoreBackup(
+          widget.service,
+        );
         if (restored && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Backup restored successfully.')),
@@ -62,6 +72,35 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
       },
       'The backup could not be restored. Check that it is a valid StockLens backup.',
     );
+  }
+
+  Future<void> _importCsv() async {
+    setState(() => _working = true);
+    try {
+      final content = await widget.fileService.pickCsv();
+      if (content == null || !mounted) return;
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => InventoryImportScreen(
+            service: widget.importService!,
+            csvContent: content,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'The CSV file could not be opened. Choose a valid UTF-8 CSV up to 20 MB.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
   }
 
   @override
@@ -84,7 +123,7 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
                     ),
                     trailing: const Icon(Icons.share_outlined),
                     onTap: () => _run(
-                      () => _files.shareBackup(widget.service),
+                      () => widget.fileService.shareBackup(widget.service),
                       'The backup could not be exported.',
                     ),
                   ),
@@ -104,16 +143,35 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
             ),
             const SizedBox(height: 12),
             Card(
-              child: ListTile(
-                enabled: !_working,
-                leading: const Icon(Icons.table_view_outlined),
-                title: const Text('Export Inventory CSV'),
-                subtitle: const Text('Share active and archived product data'),
-                trailing: const Icon(Icons.share_outlined),
-                onTap: () => _run(
-                  () => _files.shareCsv(widget.service),
-                  'The CSV export could not be created.',
-                ),
+              child: Column(
+                children: [
+                  if (widget.importService != null) ...[
+                    ListTile(
+                      enabled: !_working,
+                      leading: const Icon(Icons.upload_file_outlined),
+                      title: const Text('Import Inventory CSV'),
+                      subtitle: const Text(
+                        'Preview and atomically apply product changes',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _importCsv,
+                    ),
+                    const Divider(height: 1),
+                  ],
+                  ListTile(
+                    enabled: !_working,
+                    leading: const Icon(Icons.table_view_outlined),
+                    title: const Text('Export Inventory CSV'),
+                    subtitle: const Text(
+                      'Share active and archived product data',
+                    ),
+                    trailing: const Icon(Icons.share_outlined),
+                    onTap: () => _run(
+                      () => widget.fileService.shareCsv(widget.service),
+                      'The CSV export could not be created.',
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),

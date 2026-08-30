@@ -19,6 +19,7 @@ abstract interface class ProductRepository {
     ProductSort sort,
   });
   Future<List<Product>> getArchivedProducts({String query});
+  Future<List<Product>> getLowStockProducts();
   Future<Product?> getById(String id);
   Future<Product?> getByBarcode(String barcode);
   Future<List<String>> getCategories();
@@ -29,7 +30,10 @@ abstract interface class ProductRepository {
     required int delta,
     required String reason,
     required String note,
+    String source = 'manual',
+    String? sourceId,
   });
+  Future<void> setLowStockNotified(String productId, bool value);
   Future<List<StockTransaction>> getStockTransactions(String productId);
   Future<Product> setArchived(String productId, {required bool archived});
   Future<void> deletePermanently(String productId);
@@ -47,4 +51,10 @@ class DuplicateBarcodeException implements Exception {
   const DuplicateBarcodeException();
   @override
   String toString() => 'Barcode already exists.';
+}
+
+class ProductReferencedByInProgressStocktakeException implements Exception {
+  const ProductReferencedByInProgressStocktakeException();
+  @override
+  String toString() => 'Product is referenced by an in-progress stocktake.';
 }

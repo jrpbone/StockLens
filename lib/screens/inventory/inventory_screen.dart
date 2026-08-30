@@ -3,17 +3,31 @@ import 'package:flutter/material.dart';
 import '../../core/widgets/async_state.dart';
 import '../../models/product.dart';
 import '../../repositories/product_repository.dart';
+import '../../services/inventory_report_service.dart';
+import '../../services/inventory_import_service.dart';
 import '../../services/product_service.dart';
+import '../../services/stocktake_service.dart';
 import '../../widgets/custom_search_bar.dart';
 import '../../widgets/product_card.dart';
 import '../add_product/add_product_screen.dart';
 import '../product_details/product_details_screen.dart';
+import '../reports/inventory_reports_screen.dart';
+import '../stocktake/stocktake_sessions_screen.dart';
 import 'archived_products_screen.dart';
 import 'data_management_screen.dart';
 
 class InventoryScreen extends StatefulWidget {
-  const InventoryScreen({super.key, required this.service});
+  const InventoryScreen({
+    super.key,
+    required this.service,
+    this.stocktakeService,
+    this.reportService,
+    this.importService,
+  });
   final ProductService service;
+  final StocktakeService? stocktakeService;
+  final InventoryReportService? reportService;
+  final InventoryImportService? importService;
 
   @override
   State<InventoryScreen> createState() => _InventoryScreenState();
@@ -89,12 +103,44 @@ class _InventoryScreenState extends State<InventoryScreen> {
     appBar: AppBar(
       title: const Text('Inventory'),
       actions: [
+        if (widget.stocktakeService != null)
+          IconButton(
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => StocktakeSessionsScreen(
+                    stocktakeService: widget.stocktakeService!,
+                    productService: widget.service,
+                  ),
+                ),
+              );
+              _load();
+            },
+            icon: const Icon(Icons.fact_check_outlined),
+            tooltip: 'Stocktake',
+          ),
+        if (widget.reportService != null)
+          IconButton(
+            onPressed: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    InventoryReportsScreen(service: widget.reportService!),
+              ),
+            ),
+            icon: const Icon(Icons.analytics_outlined),
+            tooltip: 'Reports',
+          ),
         IconButton(
           onPressed: () async {
             await Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => DataManagementScreen(service: widget.service),
+                builder: (_) => DataManagementScreen(
+                  service: widget.service,
+                  importService: widget.importService,
+                ),
               ),
             );
             _load();

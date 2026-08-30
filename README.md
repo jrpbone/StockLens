@@ -14,7 +14,7 @@ An offline-first barcode inventory system built specifically for Android.
   <img src="https://img.shields.io/badge/SQLite-Offline-003B57?logo=sqlite&logoColor=white" alt="SQLite offline storage" />
   <img src="https://img.shields.io/badge/Android-API%2024%2B-3DDC84?logo=android&logoColor=white" alt="Android API 24 or newer" />
   <img src="https://img.shields.io/badge/Material-3-6750A4?logo=materialdesign&logoColor=white" alt="Material 3" />
-  <img src="https://img.shields.io/badge/Version-0.2.0-176B5B" alt="Version 0.2.0" />
+  <img src="https://img.shields.io/badge/Version-0.3.0-176B5B" alt="Version 0.3.0" />
 </p>
 
 </div>
@@ -24,9 +24,9 @@ An offline-first barcode inventory system built specifically for Android.
 ## Overview
 
 StockLens turns an Android phone into a local inventory terminal. Scan a retail
-barcode to retrieve a product, register unknown products without retyping the
-barcode, search the catalog, and record stock movements with a complete audit
-trail—without requiring a server or internet connection.
+barcode to retrieve a product, register unknown products, run stocktakes,
+receive per-product low-stock alerts, review local reports, and import inventory
+through previewed CSV upserts—without requiring a server or internet connection.
 
 ```text
 SCAN                       FIND                       MANAGE
@@ -40,11 +40,14 @@ Camera or manual code  ->  Local SQLite lookup  ->  View, edit, or adjust stock
 | Capability | What it provides |
 | --- | --- |
 | Barcode scanning | Guided camera scanner, flashlight, camera switching, haptics, sound, and duplicate-scan protection |
-| Product catalog | Names, barcodes, prices, categories, descriptions, stock, and managed product images |
+| Product catalog | Names, barcodes, cost and selling prices, thresholds, categories, descriptions, stock, and managed images |
 | Auditable stock | Atomic adjustments with reasons, notes, before-and-after quantities, and timestamps |
+| Stocktake | Resumable full, category, or selected-product counts with atomic reconciliation |
+| Low-stock alerts | Per-product thresholds, an in-app alert center, and optional local Android notifications |
+| Offline reports | Inventory valuation, profitability, movement, fast movers, and inactive stock by date range |
 | Fast inventory | Search by name, barcode, or category with filters and seven sorting modes |
 | Recovery | Product archive, restore, and separately confirmed permanent deletion |
-| Portable data | Complete JSON backup and restore, including images and history, plus CSV export |
+| Portable data | Complete JSON backup/restore, CSV export, and previewed atomic CSV upserts |
 | Offline operation | Local SQLite storage with no account, server, or network dependency |
 | Android delivery | Automated checks, installable APKs, signed AAB support, checksums, and build manifests |
 
@@ -72,8 +75,39 @@ Camera or manual code  ->  Local SQLite lookup  ->  View, edit, or adjust stock
 - Category filtering
 - Name, price, stock, and creation-date sorting
 - Philippine Peso formatting
+- Separate cost and selling prices with potential margin visibility
+- Per-product low-stock thresholds
 - Clear in-stock, low-stock, and out-of-stock badges
 - Permanent app-managed product photos
+
+### Stocktake and alerts
+
+- Create full-inventory, category, or individually selected stocktakes
+- Autosave counts, resume interrupted sessions, and increment counts by barcode
+- Review variances and concurrent stock changes before atomic reconciliation
+- Per-product low-stock rules, including threshold zero for out-of-stock-only alerts
+- In-app alerts that work without notification permission
+- Optional Android notifications triggered by threshold crossings from manual,
+  stocktake, CSV, and product-threshold changes
+
+### Reports
+
+- Today, 7-day, 30-day, custom, and all-time date ranges
+- Current units, cost value, retail value, potential margin, low stock, and out of stock
+- Recorded sales revenue, cost, estimated gross profit, damage, expiry, and net movement
+- Category valuation, fast movers, and stocked products without movement
+- Transparent disclosure when legacy sales lack historical price snapshots
+
+### CSV import
+
+- One strict UTF-8 `.csv` file up to 20 MB
+- Case-insensitive headers and legacy `price` alias support
+- Barcode-based new products and partial updates with exact trimmed matching
+- Preview groups for new products, detail updates, stock changes, unchanged rows,
+  and blocking errors
+- Blank existing quantity preserves stock; explicit zero reconciles it to zero
+- Archived conflicts and stale previews block the entire operation
+- Every accepted import is atomic and its stock corrections share one audit ID
 
 ### Stock history
 
@@ -88,10 +122,11 @@ Camera or manual code  ->  Local SQLite lookup  ->  View, edit, or adjust stock
 
 - Archive and restore without losing product history
 - Permanent deletion available only for archived products
-- Portable JSON backups containing products, images, archive state, and history
+- Portable version-2 JSON backups containing products, images, archive state,
+  price snapshots, stock history, stocktake sessions, and stocktake items
 - Transactional restore with format validation
-- CSV sharing for active and archived inventory
-- Tested database migration from schema version 1 to version 2
+- CSV sharing for active and archived inventory, including cost/selling prices and thresholds
+- Tested database migration from schema versions 1 and 2 to version 3
 
 ## Architecture
 
@@ -100,12 +135,14 @@ does not execute SQL directly.
 
 ```mermaid
 flowchart LR
-    UI[Flutter screens and widgets] --> Service[ProductService]
-    Service --> Contract[ProductRepository]
-    Contract --> Local[LocalProductRepository]
-    Local --> Products[(products)]
-    Local --> History[(stock_transactions)]
-    Service --> Images[Managed image storage]
+    UI[Flutter screens and widgets] --> Services[Focused offline services]
+    Services --> Contracts[Repository contracts]
+    Contracts --> SQLite[SQLite repositories]
+    SQLite --> Products[(products)]
+    SQLite --> History[(stock transactions)]
+    SQLite --> Counts[(stocktake sessions/items)]
+    Services --> Images[Managed image storage]
+    Services --> Notify[Local Android notifications]
 ```
 
 This repository boundary keeps a future synchronized implementation possible
@@ -130,7 +167,8 @@ lib/
 | Local database | SQLite through `sqflite` |
 | Barcode scanning | `mobile_scanner` |
 | Product images | `image_picker`, `path_provider` |
-| Backup and sharing | `file_picker`, `share_plus` |
+| Backup, CSV, and sharing | `file_picker`, `csv`, `share_plus` |
+| Local notifications | `flutter_local_notifications` |
 | Testing | Flutter Test, `sqflite_common_ffi` |
 | Android build | Gradle, Android SDK/NDK, PowerShell helpers |
 | Automation | GitHub Actions |
@@ -188,16 +226,26 @@ It can produce:
 - Optional Dart obfuscation and separated debug symbols
 - SHA-256 checksums and a JSON build manifest
 
-Example automated release bundle:
+Automated signed release APK and App Bundle:
 
 ```powershell
 .\tools\build_stocklens.ps1 `
   -NonInteractive `
+  -Format apk `
+  -Mode release `
+  -VersionName 0.3.0 `
+  -BuildNumber 4 `
+  -ApplicationId com.jrpbone.stocklens `
+  -SkipChecks
+
+.\tools\build_stocklens.ps1 `
+  -NonInteractive `
   -Format appbundle `
   -Mode release `
-  -VersionName 0.2.0 `
-  -BuildNumber 3 `
-  -ApplicationId com.jrpbone.stocklens
+  -VersionName 0.3.0 `
+  -BuildNumber 4 `
+  -ApplicationId com.jrpbone.stocklens `
+  -SkipChecks
 ```
 
 Release builds require the private local upload key and never fall back to the
@@ -223,18 +271,18 @@ Release credentials are intentionally absent from public CI.
 | --- | :---: |
 | Dart formatting | Passed |
 | Flutter analyzer | No issues |
-| Automated tests | 10 passed |
-| SQLite v1-to-v2 migration | Covered |
+| Automated tests | 130 passed |
+| SQLite v1/v2-to-v3 migration | Covered |
 | Stock history and rollback | Covered |
+| Stocktake, alerts, reports, and CSV import | Covered |
 | Archive, restore, and deletion | Covered |
-| Backup and CSV behavior | Covered |
-| Android debug APK and AAB | Built successfully |
-| Signed Android release AAB | Built and signature verified |
+| Cross-feature backup and restore | Covered |
+| Signed Android release APK and AAB | Built and manifests verified |
 | Camera scanning on a physical Android phone | Validated by project owner |
 
 ## Current release
 
-The current release is **v0.2.0** (`0.2.0+3`). See
+The current release is **v0.3.0** (`0.3.0+4`). See
 [CHANGELOG.md](CHANGELOG.md) for the complete release history.
 
 ## Current limitations
@@ -243,8 +291,8 @@ The current release is **v0.2.0** (`0.2.0+3`). See
   manually.
 - Authentication and role-based permissions are not included.
 - Stock transactions do not yet record an authenticated user.
-- Cloud synchronization, notifications, and multi-location inventory are not
-  implemented.
+- Cloud synchronization, recurring background processing, and multi-location
+  inventory are not implemented. Low-stock notifications are local to Android.
 - Signed release credentials exist only on configured development machines and
   must be backed up separately.
 

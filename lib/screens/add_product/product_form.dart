@@ -26,7 +26,9 @@ class _ProductFormState extends State<ProductForm> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _barcode;
   late final TextEditingController _name;
-  late final TextEditingController _price;
+  late final TextEditingController _sellingPrice;
+  late final TextEditingController _costPrice;
+  late final TextEditingController _lowStockThreshold;
   late final TextEditingController _category;
   late final TextEditingController _quantity;
   late final TextEditingController _description;
@@ -43,7 +45,15 @@ class _ProductFormState extends State<ProductForm> {
       text: p?.barcode ?? widget.initialBarcode ?? '',
     );
     _name = TextEditingController(text: p?.name ?? '');
-    _price = TextEditingController(text: p?.price.toStringAsFixed(2) ?? '');
+    _sellingPrice = TextEditingController(
+      text: p?.sellingPrice.toStringAsFixed(2) ?? '',
+    );
+    _costPrice = TextEditingController(
+      text: p?.costPrice.toStringAsFixed(2) ?? '0.00',
+    );
+    _lowStockThreshold = TextEditingController(
+      text: p?.lowStockThreshold.toString() ?? '5',
+    );
     _category = TextEditingController(text: p?.category ?? '');
     _quantity = TextEditingController(text: p?.quantity.toString() ?? '');
     _description = TextEditingController(text: p?.description ?? '');
@@ -55,7 +65,9 @@ class _ProductFormState extends State<ProductForm> {
     for (final controller in [
       _barcode,
       _name,
-      _price,
+      _sellingPrice,
+      _costPrice,
+      _lowStockThreshold,
       _category,
       _quantity,
       _description,
@@ -120,7 +132,9 @@ class _ProductFormState extends State<ProductForm> {
         saved = await widget.service.add(
           barcode: _barcode.text,
           name: _name.text,
-          price: double.parse(_price.text),
+          sellingPrice: double.parse(_sellingPrice.text),
+          costPrice: double.parse(_costPrice.text),
+          lowStockThreshold: int.parse(_lowStockThreshold.text),
           category: _category.text,
           quantity: int.parse(_quantity.text),
           description: _description.text,
@@ -131,7 +145,9 @@ class _ProductFormState extends State<ProductForm> {
           old.copyWith(
             barcode: _barcode.text.trim(),
             name: _name.text.trim(),
-            price: double.parse(_price.text),
+            sellingPrice: double.parse(_sellingPrice.text),
+            costPrice: double.parse(_costPrice.text),
+            lowStockThreshold: int.parse(_lowStockThreshold.text),
             category: _category.text.trim().isEmpty
                 ? 'Uncategorized'
                 : _category.text.trim(),
@@ -222,19 +238,56 @@ class _ProductFormState extends State<ProductForm> {
         ),
         const SizedBox(height: 14),
         TextFormField(
-          controller: _price,
+          key: const Key('selling-price-field'),
+          controller: _sellingPrice,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+            FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d{0,2}')),
           ],
           decoration: const InputDecoration(
-            labelText: 'Price',
+            labelText: 'Selling Price',
             prefixText: '₱ ',
           ),
           validator: (v) {
             final value = double.tryParse(v ?? '');
             return value == null || value < 0
-                ? 'Enter a valid price of 0 or more.'
+                ? 'Enter a valid selling price of 0 or more.'
+                : null;
+          },
+        ),
+        const SizedBox(height: 14),
+        TextFormField(
+          key: const Key('cost-price-field'),
+          controller: _costPrice,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d{0,2}')),
+          ],
+          decoration: const InputDecoration(
+            labelText: 'Cost Price',
+            prefixText: '₱ ',
+          ),
+          validator: (v) {
+            final value = double.tryParse(v ?? '');
+            return value == null || value < 0
+                ? 'Enter a valid cost price of 0 or more.'
+                : null;
+          },
+        ),
+        const SizedBox(height: 14),
+        TextFormField(
+          key: const Key('low-stock-threshold-field'),
+          controller: _lowStockThreshold,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(
+            labelText: 'Low-stock Threshold',
+            prefixIcon: Icon(Icons.warning_amber_outlined),
+          ),
+          validator: (v) {
+            final value = int.tryParse(v ?? '');
+            return value == null || value < 0
+                ? 'Enter a whole-number threshold of 0 or more.'
                 : null;
           },
         ),

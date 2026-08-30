@@ -6,12 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-30
+
+Offline stock control, per-product alerts, local reporting, and atomic CSV imports.
+
 ### Added
 
+- Added resumable stocktake sessions for full, category, and individually selected product scopes, including autosaved counts, barcode increments, variance review, stale-preview rejection, and atomic reconciliation.
+- Added per-product low-stock thresholds, an in-app alert center, and optional Android notifications with duplicate suppression and settings recovery.
+- Added offline inventory valuation and movement reports with preset/custom ranges, sales profitability, category totals, fast movers, inactive stock, and legacy-price disclosure.
+- Added previewed barcode-based CSV upserts with strict UTF-8 parsing, row-numbered validation, archived conflicts, stale-preview rejection, atomic apply, and shared import audit IDs.
+- Added separate cost and selling prices plus historical price snapshots on new stock transactions.
+- Added schema-v3 database migrations, stocktake tables, report indexes, and sourced transaction metadata.
+- Added cross-feature regression coverage for backup/restore, stocktake state, CSV audit linkage, and historical reports.
 - Added an Android release-signing setup assistant with safe local credential handling.
 
 ### Changed
 
+- Upgraded complete backups to format version 2 with pricing fields, transaction snapshots/source metadata, stocktake sessions, and stocktake items while retaining version-1 restore compatibility.
+- Expanded inventory CSV export with selling price, cost price, low-stock threshold, and archive status.
+- Updated the application version to `0.3.0+4`.
 - Reduced the packaging assistant to a focused Android-only APK/AAB workflow while preserving interactive metadata, checks, obfuscation, ABI splitting, checksums, and build manifests.
 - Restricted the run assistant to connected Android devices and emulators so it cannot accidentally launch an unsupported desktop or browser target.
 - Reworked the README as an Android-only project showcase while keeping the technology stack prominent at the top.
@@ -22,6 +36,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Removed unused iOS, macOS, Linux, Windows, and web platform scaffolding.
 - Removed the remote iOS GitHub Actions workflow and its token/API/build client.
 - Removed duplicate default Android launcher icons that were not referenced by the manifest.
+
+### Dependencies
+
+- Added `csv` for standards-based quoted CSV parsing.
+
+### Verification
+
+- Dart formatting completed successfully.
+- Static analysis completed with no issues.
+- All 130 automated tests passed.
+- Signed release APK and AAB artifacts were generated with SHA-256 records and verified release manifests.
 
 ## [0.2.0] - 2026-08-12
 

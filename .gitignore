@@ -52,3 +52,7 @@ app.*.map.json
 SIGNING.md
 TODO.md
 dist
+
+# Local isolated development worktrees
+/.worktrees/
+docs
